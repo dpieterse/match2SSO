@@ -17,7 +17,7 @@ _match2SSO_ makes grateful use of the _lunar_ and _jpl_eph_ repositories that we
 Run the executable _match2SSO.py_ script from the command line. Alternatively, the code is available in a Jupyter Notebook. It can be run in three modes:
 - Historic mode: run on existing data. 
 - Night mode: runs on a single catalogue. Can be run in real time. 
-- Day mode: needs to be executed once before the start of an observing night, to allow the night mode to be run in real-time during that night. The known object catalogues are downloaded and prepared so that the night mode can be executed quickly and so that the night mode can be run in parallel on multiple catalogues.
+- Day mode: needs to be executed once before the start of an observing night, to allow the night mode to be run in real-time during that night. Allows speedy and parallelized processing in night mode.
 
 ### Main command line parameters:
 - **--mode** Historic, night or day mode
