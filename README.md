@@ -22,8 +22,8 @@ Run the executable _match2SSO.py_ script from the command line. Alternatively, t
 ### Main command line parameters:
 - **--mode** Historic, night or day mode
 - **--catalog** Name of detection catalogue to run the matching on
-- **--date** Run match2SSO run on all detection catalogues corresponding to this observing night.
-- **--catlist** Run match2SSO on all detection catalogues listed in this file.
+- **--date** Run _match2SSO_ run on all detection catalogues corresponding to this observing night.
+- **--catlist** Run _match2SSO_ on all detection catalogues listed in this file.
 
 Allowed combinations of the above-mentioned parameters are:
 - Day mode
@@ -54,7 +54,8 @@ A description of what the code does in the different modes is given in the funct
 ### Input files
 _match2SSO_ runs on a FITS catalogue of detections. For MeerLICHT & BlackGEM, it is best run on the transient catalogues that were produced after difference imaging.
 
-In addition, match2SSO uses MPCORB.DAT (MPC's asteroid database) and COMET.ELEMENTS (JPL's comet database), but these are downloaded when running the script and hence do not need to be pre-downloaded.
+Other input files that the software needs are mentioned above under "Installation".
+In addition, _match2SSO_ uses MPCORB.DAT (MPC's asteroid database) and COMET.ELEMENTS (JPL's comet database), but these are downloaded when running the script and hence do not need to be pre-downloaded.
 
 ### Output files
 - Solar Sytem Object (SSO) catalogue containing the matches (__sso.fits_). SSO catalogue columns and header keywords are listed here: https://www.overleaf.com/read/zrhqwcbkfqns
