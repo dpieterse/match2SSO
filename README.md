@@ -50,12 +50,11 @@ Although multi-processing was not implemented within the code, efforts have been
 ![Click here for a flow chart of match2SSO.](https://github.com/dpieterse/match2SSO/blob/master/match2SSO_flow.png?raw=true)
 A description of what the code does in the different modes is given in the function _run_match2SSO_ within _match2SSO_.
 
-### Input / output
-**Input files**
+### Input files
 _match2SSO_ runs on a FITS catalogue of detections. For MeerLICHT & BlackGEM, it is best run on the transient catalogues that were produced after difference imaging.
 
 In addition, match2SSO uses MPCORB.DAT (MPC's asteroid database) and COMET.ELEMENTS (JPL's comet database), but these are downloaded when running the script and hence do not need to be pre-downloaded.
 
-**Output files**
+### Output files
 - Solar Sytem Object (SSO) catalogue containing the matches (__sso.fits_). SSO catalogue columns and header keywords are listed here: https://www.overleaf.com/read/zrhqwcbkfqns
 - MPC submission file (__submit.txt_), to allow easy submission of the known object detections to the Minor Planet Center. Submission files are created, but not submitted automatically. 
