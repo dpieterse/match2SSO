@@ -24,13 +24,14 @@ Run the executable _match2SSO.py_ script from the command line. Alternatively, t
 - **--catalog** Name of detection catalogue to run the matching on
 - **--date** Run match2SSO run on all detection catalogues corresponding to this observing night.
 - **--catlist** Run match2SSO on all detection catalogues listed in this file.
+
 Allowed combinations of the above-mentioned parameters are:
 - Day mode
-- Day mode + date2process
-- Night mode + cat2process
-- Historic mode + cat2process
-- Historic mode + date2process
-- Historic mode + list2process
+- Day mode + date
+- Night mode + catalog
+- Historic mode + catalog
+- Historic mode + date
+- Historic mode + catlist
 
 ### Other command line parameters:
 - **--telescope** (Abbreviated) telescope name. Allows dictionaries in the settings file _set_match2SSO.py_ with different parameter values for different telescopes.
