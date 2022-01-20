@@ -86,14 +86,28 @@ log = logging.getLogger()
 
 #Set version
 __version__ = "1.0.0"
-keywords_version = '1.0.0'
+keywords_version = "1.0.0"
 
-#Relevant transient catalogue column names
-numberColumn = 'NUMBER'
-RA_column = 'RA_PSF_D'   #ra in deg
-DEC_column = 'DEC_PSF_D' #dec in deg
-magnitudeColumn = 'MAG_ZOGY'
-dummyColumn = 'TDUMCAT'
+#Relevant detection catalogue column names
+numberColumn = "NUMBER"  #detection number, unique within the catalogue
+RA_column = "RA_PSF_D"   #ra in deg
+DEC_column = "DEC_PSF_D" #dec in deg
+magnitudeColumn = "MAG_ZOGY"
+
+#Relevant header keywords of detection catalogue
+dummyKeyword = "TDUMCAT" #boolean. If True, the catalogue is empty.
+dateKeyword = "DATE-OBS" #observation date & time in isot format
+mpc_codeKeyword = "MPC-CODE" #MPC observatory code of telescope
+
+#Default header for the MPC submission file
+defaultSubmissionHeader = (
+    "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n"
+    +"CON [p.groot@astro.ru.nl]\n"
+    +"OBS P. J. Groot, S. L. D. Bloemen, L. Townsend\n"
+    +"MEA P. M. Vreeswijk, D. L. A. Pieterse, K. Paterson\n"
+    +"TEL 0.65-m reflector + CCD\n"
+    +"NET Gaia-DR2\n"
+    +"AC2 mpc-response@blackgem.org\n")
 
 
 # ## Main functions to run match2SSO
@@ -228,7 +242,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     #cat2process are specified. nightStart is a datetime object (incl. timezone
     #information).
     if cat2process!=None:
-        nightStart = getNightStartFromCatalogueName(cat2process, tel)
+        nightStart = getNightStartFromDateObs(cat2process, tel)
         
     elif date2process!=None:
         nightStart = localTimeZone.localize(datetime.strptime(date2process +
@@ -357,7 +371,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
             return
         
         #Check for CHK files
-        utcNightStart = getNightStartFromCatalogueName(cat2process, tel, "utc")
+        utcNightStart = getNightStartFromDateObs(cat2process, tel, "utc")
         utcNightEnd = utcNightStart + timedelta(days=1)
         utcNightStart = utcNightStart.strftime("%Y%m%d")
         utcNightEnd = utcNightEnd.strftime("%Y%m%d")
@@ -485,7 +499,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
             noons = []
             catalogues2process = []
             for catalogueName in listedCatalogues:
-                noon = getNightStartFromCatalogueName(catalogueName, tel)
+                noon = getNightStartFromDateObs(catalogueName, tel)
                 noons.append(noon.strftime("%Y%m%d %H%M%S"))
                 catalogues2process.append(catalogueName)
             
@@ -584,8 +598,9 @@ def matchSingleCatalogue(catalogueName, runDirectory, nightStart, makeKOD,
     del isExisting
     
     if isDummy:
-        SSOcatalogueName = catalogueName.replace("_light", "").replace(".fits",
-                                                                   "_sso.fits")
+        SSOcatalogueName = catalogueName.replace("_light.fits", 
+                                                 ".fits").replace(".fits",
+                                                                  "_sso.fits")
         if os.path.exists(SSOcatalogueName) and not overwriteFiles:
             log.warning("{} already exists and will not be re-made."
                         .format(SSOcatalogueName))
@@ -619,7 +634,8 @@ def matchSingleCatalogue(catalogueName, runDirectory, nightStart, makeKOD,
         
     #Convert the transient catalogue to an MPC-formatted text file
     MPCfileName = "{}{}".format(runDirectory, os.path.basename(catalogueName
-                      ).replace("_light", "").replace(".fits","_MPCformat.txt"))
+                    ).replace("_light.fits", ".fits").replace(".fits",
+                                                              "_MPCformat.txt"))
     MPC_code = convertCatalogue2MPCformat(catalogueName, MPCfileName, 
                                           overwriteFiles, timeFunctions)
     if MPC_code == None:
@@ -630,12 +646,12 @@ def matchSingleCatalogue(catalogueName, runDirectory, nightStart, makeKOD,
     #Run astcheck on the MPC-formatted transient file
     astcheckOutputFileName = MPCfileName.replace("_MPCformat.txt",
                                                  "_astcheckMatches.txt")
-    runAstcheck(MPCfileName, runDirectory, astcheckOutputFileName, timeFunctions,
+    runAstcheck(MPCfileName, runDirectory, astcheckOutputFileName,timeFunctions,
                 overwriteFiles)
     
     #Save matches found by astcheck to an SSO catalogue
-    SSOcatalogueName = catalogueName.replace("_light", "").replace(".fits",
-                                                                   "_sso.fits")
+    SSOcatalogueName = catalogueName.replace("_light.fits", ".fits").replace(
+                                                           ".fits", "_sso.fits")
     create_SSOcatalogue(astcheckOutputFileName, runDirectory, SSOcatalogueName,
                         includeComets, timeFunctions, overwriteFiles)
     
@@ -980,7 +996,7 @@ def convertCatalogue2MPCformat(transientCatalogue, MPCfileName, overwriteFiles,
         transientHeader = hdu[1].header
     
     #Get the MPC observatory code from the header
-    MPC_code = transientHeader["MPC-CODE"].strip()
+    MPC_code = transientHeader[mpc_codeKeyword].strip()
     if MPC_code not in list(pd.read_fwf("{}ObsCodes.html"
                                         .format(softwareFolder),widths=[4,2000],
                                         skiprows=1)['Code'])[:-1]:
@@ -994,7 +1010,7 @@ def convertCatalogue2MPCformat(transientCatalogue, MPCfileName, overwriteFiles,
         return MPC_code
     
     #Get observation date in the right format
-    observationTime = Time(transientHeader['MJD-OBS'], format='mjd').datetime
+    observationTime = Time(transientHeader[dateKeyword], format='isot').datetime
     decimalDay = observationTime.day + (observationTime.hour + 
                  (observationTime.minute + (observationTime.second + 
                  (observationTime.microsecond/10.**6))/60.)/60.)/24.
@@ -1539,15 +1555,6 @@ def createSubmissionHeader(submissionFileName, MPC_code, timeFunctions,
         t0 = time.time()
     
     firstline = "COD {}\n".format(MPC_code)
-    defaultHeader = (
-       "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n"
-       +"CON [p.groot@astro.ru.nl]\n"
-       +"OBS P. J. Groot, S. L. D. Bloemen, L. Townsend\n"
-       +"MEA P. M. Vreeswijk, D. L. A. Pieterse, K. Paterson\n"
-       +"TEL 0.65-m reflector + CCD\n"
-       +"NET Gaia-DR2\n"
-       +"AC2 mpc-response@blackgem.org\n")
-    
 
     #Special cases for which a phrase needs to be included in the ACK line 
     #of the header of the MPC submission file:
@@ -1573,7 +1580,7 @@ def createSubmissionHeader(submissionFileName, MPC_code, timeFunctions,
     if timeFunctions:
         log_timing_memory(t0, label='createSubmissionHeader')
     
-    return firstline + defaultHeader + ACK_line + COM_line
+    return firstline + defaultSubmissionHeader + ACK_line + COM_line
 
 
 # ### Helper functions to make an MPC submission file
@@ -2053,6 +2060,9 @@ def getTransientFileNames(minimalDate, maximalDate, tel, timeFunctions,
     Time objects. If excludeFlagged is True, the dummy transient catalogues
     (which are red-flagged) are excluded.
     
+    Function assumes a directory and filename structure and hence might not be
+    applicable to other telescopes than MeerLICHT & BlackGEM. 
+    
     Parameters
     ----------
     minimalDate: datetime object, incl time zone
@@ -2112,11 +2122,11 @@ def getTransientFileNames(minimalDate, maximalDate, tel, timeFunctions,
             else:
                 log.info("Excluding red-flagged (dummy) catalogues.")
                 
-                if dummyColumn not in header.keys():
-                    log.critical("{} not in the header!".format(dummyColumn))
+                if dummyKeyword not in header.keys():
+                    log.critical("{} not in the header!".format(dummyKeyword))
                     return []
                 
-                if header[dummyColumn]==False:
+                if header[dummyKeyword]==False:
                     files2process.append(transientFile)
     
     log.info("{} transient catalogues have been selected."
@@ -2129,13 +2139,13 @@ def getTransientFileNames(minimalDate, maximalDate, tel, timeFunctions,
 # In[ ]:
 
 
-def getNightStartFromCatalogueName(catalogueName, tel, noonType="local"):
+def getNightStartFromDateObs(catalogueName, tel, noonType="local"):
     
     """
     This function returns the noon corresponding to the start of the
     observation night, as a datetime object. This is either the local noon or
-    the noon in UTC, as specified. The noon is deduced from the information in
-    the catalogue name (e.g. ML1_yyyymmdd_hhmmss_red_trans_light.fits).
+    the noon in UTC, as specified. The noon is deduced from the catalogue
+    header.
     
     Parameters
     ----------
@@ -2152,19 +2162,20 @@ def getNightStartFromCatalogueName(catalogueName, tel, noonType="local"):
     """
     noonType = noonType.lower()
     
-    #Get observation time from filename and define as being in UTC
-    splittedFileName = os.path.basename(catalogueName).split("_")
-    observationDate = splittedFileName[1]
-    observationHour = splittedFileName[2]
-    observationTime = datetime.strptime(observationDate+" "+observationHour, 
-                                   "%Y%m%d %H%M%S").replace(tzinfo=pytz.utc)
+    #Get observation time from catalogue header and define as being in UTC
+    with fits.open(catalogueName) as hdu:
+        hdr = hdu[1].header
+    
+    observationTime = pytz.utc.localize(Time(hdr[dateKeyword], 
+                                             format='isot').datetime)
+    observationDate = str(observationTime.date())
     
     if noonType == "local":
         localTimeZone = timezone(get_par(settingsFile.timeZoneTelescope, tel))
         
         #Get local noon corresponding to the start of the observing night
         local_noon = localTimeZone.localize(datetime.strptime(observationDate+
-                                                     " 120000","%Y%m%d %H%M%S"))
+                                                   " 120000","%Y-%m-%d %H%M%S"))
         #Get date of observing night
         if observationTime < local_noon:
             date = (observationTime - timedelta(days=1)).strftime("%Y%m%d")
@@ -2179,8 +2190,8 @@ def getNightStartFromCatalogueName(catalogueName, tel, noonType="local"):
             log.error("Noon type not understood. Assuming noon in utc.")
         
         startNight = pytz.utc.localize(datetime.strptime(
-                                    observationDate+" 120000","%Y%m%d %H%M%S"))
-        if int(observationHour[:2])<12.:
+                                   observationDate+" 120000","%Y-%m-%d %H%M%S"))
+        if int(observationTime.hour)<12.:
             startNight = startNight - timedelta(days=1)
     
     return startNight
@@ -2204,7 +2215,7 @@ def checkInputCatalogue(catalogueName):
     #version of the catalogue if it is available (better in terms of memory 
     #usage & processing speed)
     if "_light" not in catalogueName:
-        lightCatalogueName = catalogueName.replace("_trans", "_trans_light")
+        lightCatalogueName = catalogueName.replace(".fits", "_light.fits")
         if os.path.exists(lightCatalogueName):
             catalogueName = lightCatalogueName
             
@@ -2217,12 +2228,12 @@ def checkInputCatalogue(catalogueName):
     with fits.open(catalogueName) as hdu:
         header = hdu[1].header
             
-    if dummyColumn not in header.keys():
+    if dummyKeyword not in header.keys():
         log.critical("{} not in the header of {}!"
-                     .format(dummyColumn, catalogueName))
+                     .format(dummyKeyword, catalogueName))
         return False, None, catalogueName
 
-    if header[dummyColumn]:
+    if header[dummyKeyword]:
         log.info("{} is a dummy catalogue.".format(catalogueName))
         return True, True, catalogueName
     
