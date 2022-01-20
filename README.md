@@ -1,7 +1,7 @@
 # match2SSO
 Python code to match ***single*** telescope detections to ***known solar system objects*** based on their ***position***. To keep the matching accurate, only ***known objects with small orbital uncertainties*** are used in the matching. The maximum allowed uncertainty is set in _set_match2SSO.py_.
 
-Asteroid matching is done by default. Comet matching is only done when adding ```--include_comets True```. Currently, comet matching is not performed by default, as a selection based on orbital uncertainty is less straight forward for comets and Bill Gray's _integrat.cpp_ does not work on JPL's comet database.
+Asteroid matching is done by default. Comet matching is only done when adding ```--includecomets True```. Currently, comet matching is not performed by default, as a selection based on orbital uncertainty is less straight forward for comets and Bill Gray's _integrat.cpp_ does not work on JPL's comet database.
 
 _match2SSO_ was created for the [MeerLICHT](http://www.meerlicht.uct.ac.za/) & [BlackGEM](https://astro.ru.nl/blackgem/) telescopes. Originally written in Jupyter Notebook, it's also available as an executable Python script. It's compatible with MeerLICHT's image processing software (BlackBOX & ZOGY) version 1.0.0 and up.
 
@@ -22,10 +22,10 @@ Run the executable _match2SSO.py_ script from the command line. Alternatively, t
 - Day mode: needs to be executed once before the start of an observing night, to allow the night mode to be run in real-time during that night. Allows speedy and parallelized processing in night mode.
 
 ### Main command line parameters:
-- **--mode** Historic, night or day mode
-- **--catalog** Name of detection catalogue to run the matching on
-- **--date** Run _match2SSO_ run on all detection catalogues corresponding to this observing night.
-- **--catlist** Run _match2SSO_ on all detection catalogues listed in this file.
+- ```--mode``` Historic, night or day mode
+- ```--catalog``` Name of detection catalogue to run the matching on
+- ```--date``` Run _match2SSO_ run on all detection catalogues corresponding to this observing night.
+- ```--catlist``` Run _match2SSO_ on all detection catalogues listed in this file.
 
 Allowed combinations of the above-mentioned parameters are:
 - Day mode
@@ -36,18 +36,18 @@ Allowed combinations of the above-mentioned parameters are:
 - Historic mode + catlist
 
 ### Other command line parameters:
-- **--telescope** (Abbreviated) telescope name. Allows dictionaries in the settings file _set_match2SSO.py_ with different parameter values for different telescopes.
-- **--newdatabases** Boolean to indicate if new known object databases need to be downloaded. If False, the last downloaded version of the database will be used (if it exists).
-- **--includecomets** Boolean to indicate if comets should be included in the matching. Including comet matching currently leads to issues.
-- **--logname** Name of the log file
-- **--keep_tmp** Boolean to indicate if temporary files need to be kept.
-- **--overwrite** Boolean to indicate whether existing files are allowed to be overwritten.
-- **--timing** Boolean to indicate whether functions need to be wall-timed. Timing information is saved to the log.
+- ```--telescope``` (Abbreviated) telescope name. Allows dictionaries in the settings file _set_match2SSO.py_ with different parameter values for different telescopes.
+- ```--newdatabases``` Boolean to indicate if new known object databases need to be downloaded. If False, the last downloaded version of the database will be used (if it exists).
+- ```--includecomets``` Boolean to indicate if comets should be included in the matching. Including comet matching currently leads to issues.
+- ```--logname``` Name of the log file
+- ```--keep_tmp``` Boolean to indicate if temporary files need to be kept.
+- ```--overwrite``` Boolean to indicate whether existing files are allowed to be overwritten.
+- ```--timing``` Boolean to indicate whether functions need to be wall-timed. Timing information is saved to the log.
 
 ### Multi-processing
 Although multi-processing was not implemented within the code, efforts have been made to allow calling the code multiple times in parallel.
-- Night mode: runs independently on a single catalogue. The steps in the code that make parallelization impossible have been moved to the day mode. Prepare for the night mode by running the day mode once before the start of an observing night. The night mode can be run on multiple catalogues of the same night in parallel without issues. 
-- Day mode: parallelization is only possible for data that was not taken on the same night. Multiple nights can be processed in parallel easily by running the day mode on those nights individually.
+- **Night mode:** runs independently on a single catalogue. The steps in the code that make parallelization impossible have been moved to the day mode. Prepare for the night mode by running the day mode once before the start of an observing night. The night mode can be run on multiple catalogues of the same night in parallel without issues. 
+- **Day mode:** parallelization is only possible for data that was not taken on the same night. Multiple nights can be processed in parallel easily by running the day mode on those nights individually.
 
 ## Code description
 ![Click here for a flow chart of match2SSO.](https://github.com/dpieterse/match2SSO/blob/master/match2SSO_flow.png?raw=true)
