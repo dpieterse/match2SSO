@@ -9,8 +9,8 @@ _match2SSO_ makes grateful use of the [_lunar_](https://github.com/Bill-Gray/lun
 
 ## Installation
 - Install Python (code was tested on Python 3.8.10) and C++ 
-- Clone Bill Gray's _lunar_ repository to a software folder (https://github.com/Bill-Gray/lunar)
-- Clone Bill Gray's _jpl_eph_ repository to the software folder (https://github.com/Bill-Gray/jpl_eph)
+- Clone Bill Gray's _lunar_ repository to a software folder (https://github.com/Bill-Gray/lunar) and build the library & executables as described in this repository's README file. Also build _integrat_ by running ```make integrat```.
+- Clone Bill Gray's _jpl_eph_ repository to the software folder (https://github.com/Bill-Gray/jpl_eph) and build the library & executables as described in this repository's README file.
 - Clone the match2SSO repository.
 - Download JPL's DE ephemeris file to the software folder. (ftp://ssd.jpl.nasa.gov/pub/eph/planets/Linux/)
 - Download MPC's Observatory codes list to the software folder. (https://www.minorplanetcenter.net/iau/lists/ObsCodes.html)
