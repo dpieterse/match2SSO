@@ -1,9 +1,11 @@
 # match2SSO
-Python code to match telescope detections to known solar system bodies (in MPCORB).
+Python code to match ***single*** telescope detections to ***known solar system objects*** based on their ***position***. To keep the matching accurate, only ***known objects with small orbital uncertainties*** are used in the matching. The maximum allowed uncertainty is set in _set_match2SSO.py_.
 
-Created for the MeerLICHT & BlackGEM telescopes. Originally written in Jupyter Notebook, but also available as an executable Python script. Compatible with MeerLICHT's image processing software (BlackBOX & ZOGY) version 1.0.0 and up.
+Asteroid matching is done by default. Comet matching is only done when adding ```--include_comets True```. Currently, comet matching is not performed by default, as a selection based on orbital uncertainty is less straight forward for comets and Bill Gray's _integrat.cpp_ does not work on JPL's comet database.
 
-_match2SSO_ makes grateful use of the _lunar_ and _jpl_eph_ repositories that were written by Bill Gray under Project Pluto. The core of _match2SSO_ is _astcheck_: a C++ script in the _lunar_ repository that matches detections to known solar system objects. More information on _astcheck_ can be found at: https://www.projectpluto.com/astcheck.htm
+_match2SSO_ was created for the [MeerLICHT](http://www.meerlicht.uct.ac.za/) & [BlackGEM](https://astro.ru.nl/blackgem/) telescopes. Originally written in Jupyter Notebook, it's also available as an executable Python script. It's compatible with MeerLICHT's image processing software (BlackBOX & ZOGY) version 1.0.0 and up.
+
+_match2SSO_ makes grateful use of the [_lunar_](https://github.com/Bill-Gray/lunar) and [_jpl_eph_](https://github.com/Bill-Gray/jpl_eph) repositories that were written by Bill Gray under Project Pluto. The core of _match2SSO_ is [_astcheck_](https://www.projectpluto.com/astcheck.htm): a C++ script in the _lunar_ repository that matches detections to known solar system objects.
 
 ## Installation
 - Install Python (code was tested on Python 3.8.10) and C++ 
