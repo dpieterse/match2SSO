@@ -1220,11 +1220,13 @@ def create_SSOcatalogue(astcheckOutputFileName, runDirectory,
             continue
         
         #Get properties of closest match
-        matchProperties = re.split('  +', matches[0])
+        matchProperties = re.split(' +', matches[0])
+        matchProperties = [x for x in matchProperties if len(x)>0]
         if len(matchProperties) == 7:
             identifier, offsetRA, offsetDEC, offset, magnitude,             properMotionRA, properMotionDEC = matchProperties
         elif len(matchProperties) == 8:
-            _, identifier, offsetRA, offsetDEC, offset, magnitude,             properMotionRA, properMotionDEC = matchProperties
+            identifierA, identifierB, offsetRA, offsetDEC, offset, magnitude,             properMotionRA, properMotionDEC = matchProperties
+            identifier = identifierA + " " + identifierB
         else:
             log.critical("Match could not be split into correct parameters:\n{}"
                         .format(matches[0]))
