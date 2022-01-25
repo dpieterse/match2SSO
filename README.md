@@ -7,6 +7,7 @@ _match2SSO_ was created for the [MeerLICHT](http://www.meerlicht.uct.ac.za/) & [
 
 _match2SSO_ makes grateful use of the [_lunar_](https://github.com/Bill-Gray/lunar) and [_jpl_eph_](https://github.com/Bill-Gray/jpl_eph) repositories that were written by Bill Gray under Project Pluto. The core of _match2SSO_ is [_astcheck_](https://www.projectpluto.com/astcheck.htm): a C++ script in the _lunar_ repository that matches detections to known solar system objects.
 
+
 ## Installation
 - Install Python (code was tested on Python 3.8.10) and C++ 
 - Clone Bill Gray's _lunar_ repository to a software folder (https://github.com/Bill-Gray/lunar) and build the library & executables as described in this repository's README file. Also build _integrat_ by running ```make integrat```.
@@ -15,11 +16,27 @@ _match2SSO_ makes grateful use of the [_lunar_](https://github.com/Bill-Gray/lun
 - Download JPL's DE ephemeris file to the software folder. (ftp://ssd.jpl.nasa.gov/pub/eph/planets/Linux/)
 - Download MPC's Observatory codes list to the software folder. (https://www.minorplanetcenter.net/iau/lists/ObsCodes.html)
 
+
+## Input & output files
+#### Input
+_match2SSO_ runs on a FITS catalogue of detections. For MeerLICHT & BlackGEM, it is best run on the transient catalogues that were produced after difference imaging.
+
+Other input files that the software needs are mentioned above under "Installation".
+In addition, _match2SSO_ uses MPCORB.DAT (MPC's asteroid database) and COMET.ELEMENTS (JPL's comet database), but these are downloaded when running the script and hence do not need to be pre-downloaded.
+
+#### Output
+- Solar Sytem Object (SSO) catalogue containing the matches (__sso.fits_). SSO catalogue columns and header keywords are listed here: https://www.overleaf.com/read/zrhqwcbkfqns
+- MPC submission file (__submit.txt_), to allow easy submission of the known object detections to the Minor Planet Center. Submission files are created, but not submitted automatically. 
+
+
 ## Running match2SSO
-Run the executable _match2SSO.py_ script from the command line. Alternatively, the code is available in a Jupyter Notebook. It can be run in three modes:
+Run the _match2SSO.py_ script from the command line. Alternatively, the code is available in a Jupyter Notebook. It can be run in three modes:
 - Historic mode: run on existing data. 
-- Night mode: runs on a single catalogue. Can be run in real time. 
 - Day mode: needs to be executed once before the start of an observing night, to allow the night mode to be run in real-time during that night. Allows speedy and parallelized processing in night mode.
+- Night mode: run during the observing run (in real time) on a single detection catalogue. Needs the products made during the day mode.
+
+More details on these modes are listed under "Code description" below.
+
 
 ### Main command line parameters:
 - ```--mode``` Historic, night or day mode
@@ -35,6 +52,7 @@ Allowed combinations of the above-mentioned parameters are:
 - Historic mode + date
 - Historic mode + catlist
 
+
 ### Other command line parameters:
 - ```--telescope``` (Abbreviated) telescope name. Allows dictionaries in the settings file _set_match2SSO.py_ with different parameter values for different telescopes.
 - ```--newdatabases``` Boolean to indicate if new known object databases need to be downloaded. If False, the last downloaded version of the database will be used (if it exists).
@@ -44,21 +62,41 @@ Allowed combinations of the above-mentioned parameters are:
 - ```--overwrite``` Boolean to indicate whether existing files are allowed to be overwritten.
 - ```--timing``` Boolean to indicate whether functions need to be wall-timed. Timing information is saved to the log.
 
+
 ### Multi-processing
 Although multi-processing was not implemented within the code, efforts have been made to allow calling the code multiple times in parallel.
 - **Night mode:** runs independently on a single catalogue. The steps in the code that make parallelization impossible have been moved to the day mode. Prepare for the night mode by running the day mode once before the start of an observing night. The night mode can be run on multiple catalogues of the same night in parallel without issues. 
 - **Day mode:** parallelization is only possible for data that was not taken on the same night. Multiple nights can be processed in parallel easily by running the day mode on those nights individually.
 
+
 ## Code description
 ![Click here for a flow chart of match2SSO.](https://github.com/dpieterse/match2SSO/blob/master/match2SSO_flow.png?raw=true)
-A description of what the code does in the different modes is given in the function _run_match2SSO_ within _match2SSO_.
 
-### Input files
-_match2SSO_ runs on a FITS catalogue of detections. For MeerLICHT & BlackGEM, it is best run on the transient catalogues that were produced after difference imaging.
-
-Other input files that the software needs are mentioned above under "Installation".
-In addition, _match2SSO_ uses MPCORB.DAT (MPC's asteroid database) and COMET.ELEMENTS (JPL's comet database), but these are downloaded when running the script and hence do not need to be pre-downloaded.
-
-### Output files
-- Solar Sytem Object (SSO) catalogue containing the matches (__sso.fits_). SSO catalogue columns and header keywords are listed here: https://www.overleaf.com/read/zrhqwcbkfqns
-- MPC submission file (__submit.txt_), to allow easy submission of the known object detections to the Minor Planet Center. Submission files are created, but not submitted automatically. 
+The steps match2SSO performs in the different modes are:
+- **Day mode**
+    1. Creates a run directory in preparation of the nightly processing
+    2. Downloads asteroid and comet databases to the database folder.
+    3. Integrates the asteroid database to midnight of the observation night
+    4. Combines the comet and integrated asteroid databases into a SOF-formatted known objects database.
+    5. Creates symbolic links in the run directory to the used databases and the observatory codes list.
+    6. Runs astcheck on a fake detection in order to create the CHK files that astcheck will need for faster / parallel processing when running on observations. 
+    7. Removes the fake detection in- & output (but not the CHK files!).
+    (Products of steps 1-2 are saved to the databaseFolder, those of steps 3-5
+    to the run directory.)
+- **Night mode**
+    1. Converts the detection catalogue into an MPC-formatted text file.
+    2. Runs astcheck on that file, to find matches between the detections and known solar system objects. 
+    3. Makes an SSO catalogue containing the matches.
+    4. Makes an MPC submission file of the matches.
+- **Historic mode**<br/> Runs on a single detection catalogue (observation), a night of observations or a list of observations. The observations are grouped and processed per observing night. The historic mode:
+    1. Creates a run directory per observation night
+    2. [_Optional_] Downloads asteroid and comet databases to the database folder. (If this step is skipped, the most recently downloaded version of the database will be used.)
+    3. Integrates the asteroid database to midnight of the observation night.
+    4. Combines the comet and integrated asteroid databases into a SOF-formatted known objects database.
+    5. Creates symbolic links in the run directory to the used databases and the observatory codes list.
+    6. Run the matching per detection catalogue:<br/>
+          a. Converts the detection catalogue into an MPC-formatted text file.
+          <br/>b. Runs astcheck on that file, to find matches between the detections and known solar system objects. 
+          <br/>c. Makes an SSO catalogue containing the matches.
+          <br/>d. Makes an MPC submission file of the matches.<br/>
+    7. [_Optional_] Removes the run directory, including files in it (SOF-formatted known objects database, symbolic links, MPC-formatted detection file, astcheck output text file). Also removes the integrated asteroid database.
