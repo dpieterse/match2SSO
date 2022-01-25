@@ -207,7 +207,9 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
             23 Dec 2021)
     overwriteFiles: string
             String that can be converted to a boolean with str2bool(). This
-            boolean indicates whether files are allowed to be overwritten.
+            boolean indicates whether files are allowed to be overwritten. If
+            overwrite is False and the SSO catalogue and MPC submission files
+            both already exist, the observation will be skipped.
     timeFunctions: string
             String that can be converted to a boolean with str2bool(). This
             boolean indicates whether functions need to be (wall-)timed.
@@ -436,9 +438,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
             
             #Run matching per catalogue
             makeKOD = True
-            for index, catalogueName in enumerate(cataloguesSingleNight):
-                log.info("Processing {}".format(catalogueName))
-                
+            for index, catalogueName in enumerate(cataloguesSingleNight):                
                 madeKOD = matchSingleCatalogue(catalogueName, runDirectory,
                                                startNight, makeKOD,redownloadDB,
                                                includeComets, keep_tmp, 
@@ -588,8 +588,50 @@ def matchSingleCatalogue(catalogueName, runDirectory, nightStart, makeKOD,
     mem_use(label='at start of matchSingleCatalogue')
     if timeFunctions:
         t0 = time.time()
+    log.info("Running match2SSO on {}".format(catalogueName))
     
     madeKOD = False
+    
+    #File names
+    MPCfileName = "{}{}".format(runDirectory, os.path.basename(catalogueName
+                    ).replace("_light.fits", ".fits").replace(".fits",
+                                                              "_MPCformat.txt"))
+    SSOcatalogueName = catalogueName.replace("_light.fits", ".fits").replace(
+                                                           ".fits", "_sso.fits")
+    submissionFileName = "{}{}.txt".format(submissionFolder, 
+                          os.path.basename(SSOcatalogueName).replace(".fits",
+                                                                     "_submit"))
+    
+    #Check if output products (SSO catalogue & MPC submission file) exist
+    if os.path.exists(SSOcatalogueName) and not overwriteFiles:
+        log.info("SSO catalogue exists and will not be remade.\n Processing "
+                 +"steps up to SSO catalogue creation will be skipped.")
+        
+        #Check for any version of a submission file for this observation
+        submissionFiles = glob.glob("{}*.txt"
+                                .format(submissionFileName.replace(".txt", "")))
+        if len(submissionFiles) != 0:
+            log.info("There is at least one version of an MPC submission file "
+                     +"for this observation.\n" 
+                     +"Skipping submission file creation.")
+            return madeKOD
+        else:
+            #Check if MPC-formatted file that the submission creation function
+            #needs exists and get the MPC code. If it doesn't exist yet/anymore,
+            #remake this file first.
+            MPC_code = convertCatalogue2MPCformat(catalogueName, MPCfileName,
+                                                  overwriteFiles, timeFunctions)
+            if MPC_code == None:
+                log.critical("Stop running match2SSO on catalogue because of "
+                             +"unknown MPC code.")
+                return madeKOD
+            
+            #Create a submission file that can be used to submit the detections 
+            #that were matched to known solar system objects to the MPC
+            createSubmissionFile(SSOcatalogueName, MPCfileName, 
+                                 submissionFileName, MPC_code, timeFunctions, 
+                                 overwriteFiles)
+            return madeKOD
     
     #Check if input catalogue exists and is not flagged red
     isExisting, isDummy, catalogueName = checkInputCatalogue(catalogueName)
@@ -633,9 +675,6 @@ def matchSingleCatalogue(catalogueName, runDirectory, nightStart, makeKOD,
                        "{}ObsCodes.html".format(runDirectory))
         
     #Convert the transient catalogue to an MPC-formatted text file
-    MPCfileName = "{}{}".format(runDirectory, os.path.basename(catalogueName
-                    ).replace("_light.fits", ".fits").replace(".fits",
-                                                              "_MPCformat.txt"))
     MPC_code = convertCatalogue2MPCformat(catalogueName, MPCfileName, 
                                           overwriteFiles, timeFunctions)
     if MPC_code == None:
@@ -650,15 +689,13 @@ def matchSingleCatalogue(catalogueName, runDirectory, nightStart, makeKOD,
                 overwriteFiles)
     
     #Save matches found by astcheck to an SSO catalogue
-    SSOcatalogueName = catalogueName.replace("_light.fits", ".fits").replace(
-                                                           ".fits", "_sso.fits")
     create_SSOcatalogue(astcheckOutputFileName, runDirectory, SSOcatalogueName,
                         includeComets, timeFunctions, overwriteFiles)
     
     #Create a submission file that can be used to submit the detections that 
     #were matched to known solar system objects to the MPC
-    createSubmissionFile(SSOcatalogueName, MPCfileName, MPC_code, timeFunctions,
-                         overwriteFiles)
+    createSubmissionFile(SSOcatalogueName, MPCfileName, submissionFileName, 
+                         MPC_code, timeFunctions, overwriteFiles)
     
     #Delete temporary files corresponding to the processed transient catalogue. 
     #The other temporary files (the CHK files, the SOF file and the symbolic 
@@ -1411,8 +1448,9 @@ def create_SSOheader(runDirectory, includeComets, dummy, timeFunctions):
 # In[ ]:
 
 
-def createSubmissionFile(SSOcatalogueName, MPCformattedFileName, MPC_code,
-                        timeFunctions, overwriteFiles):
+def createSubmissionFile(SSOcatalogueName, MPCformattedFileName,
+                         submissionFileName, MPC_code, timeFunctions,
+                         overwriteFiles):
     """
     Make an MPC submission file using the SSO catalogue and the MPC-formatted 
     file that were created within match2SSO to link the transient detections 
@@ -1431,6 +1469,9 @@ def createSubmissionFile(SSOcatalogueName, MPCformattedFileName, MPC_code,
             Name of the MPC formatted file that was made in match2SSO for the
             matching (but does not contain the correct SSO identifiers yet for
             submission to the MPC).
+    submissionFileName: string
+            Name of the MPC submission file that will be made from the SSO
+            catalogue. The submission file should have the extension ".txt".
     MPC_code: string
             MPC code corresponding to the telescope.
     timeFunctions: boolean
@@ -1445,10 +1486,8 @@ def createSubmissionFile(SSOcatalogueName, MPCformattedFileName, MPC_code,
     
     #Compose submission file name
     submissionFileVersion = Time.now().strftime("%Y%m%dT%H%M%S")
-    submissionFileName = "{}{}_{}.txt".format(submissionFolder, 
-                          os.path.basename(SSOcatalogueName).replace(".fits",
-                                                                     "_submit"),
-                          submissionFileVersion)
+    submissionFileName = submissionFileName.replace(".txt", "_{}.txt"
+                                                 .format(submissionFileVersion))
     
     #Check if file already exists (will only happen when running this function
     #multiple times in close succession, as the production time is used in the
