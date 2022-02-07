@@ -66,7 +66,7 @@ Allowed combinations of the above-mentioned parameters are:
 ### Multi-processing
 Although multi-processing was not implemented within the code, efforts have been made to allow calling the code multiple times in parallel.
 - **Night mode:** runs independently on a single catalogue. The steps in the code that make parallelization impossible have been moved to the day mode. Prepare for the night mode by running the day mode once before the start of an observing night. The night mode can be run on multiple catalogues of the same night in parallel without issues. 
-- **Day mode:** parallelization is only possible for data that was not taken on the same night. Multiple nights can be processed in parallel easily by running the day mode on those nights individually.
+- **Historic mode:** parallelization is only possible for data that was not taken on the same night. Multiple nights can be processed in parallel easily by running the historic mode on those nights individually.
 
 
 ## Code description
