@@ -409,7 +409,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
                         software_folder, database_folder, submission_folder)
                 else:
                     match_catalogues_single_night(
-                        catalogues2process_1night, noon, redownload_db=False,
+                        catalogues2process_1night, noon, False,
                         software_folder, database_folder, submission_folder)
                 first_night = False
     
@@ -883,7 +883,7 @@ def create_known_objects_database(midnight, rundir, database_folder,
             "     e        i         w        Node          Tp       Ref\n---",
             "---------------------------------------- ------- ----------- ---",
             "------- --------- --------- --------- -------------- ------------"
-            ])
+            ]))
     
     # Integrat only accepts UTC midnights. Choose the one closest to local
     # midnight.
@@ -1134,7 +1134,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder,
                                                 precision=2)[:11],
                                 coord.to_string('hmsdms', sep=' ',
                                                 precision=1)[-11:],
-                                mag.rjust(4), mpc_code)
+                                mag.rjust(4), mpc_code)])
         
         # Write the data to the MPC-formatted file
         mpcformat_file_content.write("{}\n".format(line))
@@ -1665,7 +1665,7 @@ def create_submission_header(submission_file, mpc_code, comment=None):
 # ### Helper functions to make an MPC submission file
 # Convert asteroid designations to their packed form
 
-# In[1]:
+# In[ ]:
 
 
 def abbreviate_number(num):
@@ -2292,7 +2292,7 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
                 if not header[DUMMY_KEYWORD]:
                     files2process.append(transient_cat)
     
-    LOG.info("%i transient catalogues have been selected."
+    LOG.info("%i transient catalogues have been selected.",
              len(files2process))
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label='get_transient_filenames')
