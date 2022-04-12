@@ -1036,8 +1036,8 @@ def select_asteroids_on_uncertainty(asteroid_database):
 # In[ ]:
 
 
-def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
-    
+def convert_fits2mpc(transient_cat, mpcformat_file, software_folder,
+                     filter_out_negatives=True):
     """
     Function converts the transient catalogue to a text file of the MPC
     80-column format, so that astcheck can run on it. For the asteroid / comet
@@ -1045,6 +1045,15 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     transient number cannot be used for MPC submissions as it is not all-time
     unique (per telescope). But it is a straight-forward way to link detections
     to known solar system objects within match2SSO.
+    
+    Negative transients can be excluded from the MPC-formatted file. These are
+    transients that are present in the reference image but not in the new
+    image, or transients that have dimmed with respect to the reference image.
+    They can be recognised as having a negative signal-to-noise ratio value in
+    the significance (Scorr) image for MeerLICHT and BlackGEM. As reference
+    images can be stacked images that are not centered on the asteroid and for
+    which the observation date and time is unclear, asteroids in the reference
+    images are not useful to include in the matches.
     
     Parameters:
     -----------
@@ -1056,6 +1065,11 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     software_folder: string
         Folder in which the MPC observatory codes list (Obscodes.html) is
         stored.
+    filter_out_negatives: boolean
+        Boolean indicating whether negative transients should be excluded from
+        the MPC-formatted file that this function creates. By default this is
+        turned on. For other telescopes than MeerLICHT or BlackGEM, you might
+        want to have the option to turn this off.
     """
     mem_use(label='at start of convert_fits2mpc')
     LOG.info("Converting transient catalogue to MPC-format.")
@@ -1091,6 +1105,11 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     # Load transient catalogue data
     with fits.open(transient_cat) as hdu:
         detections = Table(hdu[1].data)
+    
+    #Take out negative transients
+    if filter_out_negatives:
+        index_positives = np.where(detections[SNR_COLUMN]>=0)[0]
+        detections = detections[index_positives]
     
     # Create output file
     mpcformat_file_content = open(mpcformat_file, "w")
