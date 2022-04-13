@@ -1191,7 +1191,7 @@ def run_astcheck(mpcformat_file, rundir, output_file,
     output_file_content = open(output_file, 'w')
     
     # Run astcheck from folder containing .sof-file
-    subprocess.call(["astcheck", mpcformat_file,
+    subprocess.call(["astcheck", mpcformat_file, "-h",
                      "-r{}".format(matching_radius),
                      "-m{}".format(settingsFile.limitingMagnitude),
                      "-M{}".format(settingsFile.maximalNumberOfAsteroids)],
@@ -1203,6 +1203,31 @@ def run_astcheck(mpcformat_file, rundir, output_file,
         log_timing_memory(t_func, label='run_astcheck')
     
     return
+
+
+# In[ ]:
+
+
+def remove_astcheck_header_and_footer(astcheck_file_content):
+    
+    """
+    Before the -h switch was implemented in astcheck, the header and footer
+    needed to be removed manually. Check if astcheck has done this already, or
+    if manual removal is required. Return the content of the astcheck file
+    excluding the header and footer.
+    """
+    
+    # The footer is variable in terms of the number of lines it spans, but it
+    # always starts with the footer_string as defined below and can hence be
+    # recognized by this string.
+    footer_string = "The apparent motion and arc length"
+    header_size = 5 # Number of header lines
+    footer_index = [index for index in range(len(astcheck_file_content)) if                    footer_string in astcheck_file_content[index]]
+    if footer_index:
+        return astcheck_file_content[header_size:footer_index[0]]
+    
+    else:
+        return astcheck_file_content[1:] # Just remove first empty line
 
 
 # In[ ]:
@@ -1250,15 +1275,12 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
             log_timing_memory(t_func, label='create_sso_catalogue')
         return
     
-    # Read astcheck's output file.
-    # The footer is variable in terms of the number of lines it spans, but it
-    # always starts with the footer_string as defined below and can hence be
-    # recognized by this string.
-    footer_string = "The apparent motion and arc length"
+    # Remove astcheck header and footer if needed
     astcheck_file_content = open(astcheck_file, "r").readlines()
-    footer_index = [index for index in range(len(astcheck_file_content)) if                    footer_string in astcheck_file_content[index]][0]
-    astcheck_file_content = astcheck_file_content[5:footer_index]
+    astcheck_file_content = remove_astcheck_header_and_footer(
+        astcheck_file_content)
     
+    # Find empty lines
     separator = "\n"
     indices_separator = np.where(np.array(astcheck_file_content)
                                  == separator)[0]
@@ -1299,16 +1321,14 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
         # Get properties of closest match
         match_properties = re.split(' +', matches[0])
         match_properties = [x for x in match_properties if len(x) > 0]
-        if len(match_properties) == 7:
-            identifier, offset_ra, offset_dec, offset, magnitude,                 _, _ = match_properties
-        elif len(match_properties) == 8:
-            identifier_a, identifier_b, offset_ra, offset_dec, offset,                 magnitude, _, _ = match_properties
-            identifier = " ".join([identifier_a, identifier_b])
-        else:
-            LOG.critical("Match could not be split into correct parameters:\n"
-                         "%s", matches[0])
-            continue
-        
+        identifier = match_properties[0]
+        try:
+            int(match_properties[1])
+            offset_ra, offset_dec, offset, magnitude = match_properties[1:5]
+        except ValueError:
+            identifier = " ".join([identifier, match_properties[1]])
+            offset_ra, offset_dec, offset, magnitude = match_properties[2:6]
+            
         try:
             magnitude = float(magnitude)
         except ValueError:
@@ -1320,7 +1340,6 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
         output_row = [transient_number, str(identifier), float(offset_ra),
                       float(offset_dec), float(offset), magnitude]
         output_table.add_row(output_row)
-    astcheck_file_content.close()
     
     # If a solar system object was matched to multiple transient sources,
     # remove all these matches as they are unreliable
@@ -1347,6 +1366,7 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
     LOG.info("Matches saved to SSO catalogue: %s", sso_cat)
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label='create_sso_catalogue')
+    
     return
 
 
@@ -1354,6 +1374,7 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
 
 
 def create_sso_header(rundir, software_folder, dummy):
+    
     """
     Function creates the header for the SSO catalogue.
     
@@ -1614,6 +1635,7 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file,
 
 
 def create_submission_header(submission_file, mpc_code, comment=None):
+    
     """
     Function composes the header of the MPC submission file corresponding to a
     single transient catalogue.
