@@ -1295,7 +1295,8 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
         "DIST_RA_SSO":  ["i2", "arcsec"],
         "DIST_DEC_SSO": ["i2", "arcsec"],
         "DIST_SSO":     ["i2", "arcsec"],
-        "MAG_V_SSO":    ["f4", ""]
+        "MAG_V_SSO":    ["f4", ""],
+        "FLAGS_SSO":    ["i2", ""]
         }
     output_table = Table()
     for key in output_columns.keys():
@@ -1318,40 +1319,45 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
         if not matches: #Empty list
             continue
         
-        # Get properties of closest match
-        match_properties = re.split(' +', matches[0])
-        match_properties = [x for x in match_properties if len(x) > 0]
-        identifier = match_properties[0]
-        try:
-            int(match_properties[1])
-            offset_ra, offset_dec, offset, magnitude = match_properties[1:5]
-        except ValueError:
-            identifier = " ".join([identifier, match_properties[1]])
-            offset_ra, offset_dec, offset, magnitude = match_properties[2:6]
-            
-        try:
-            magnitude = float(magnitude)
-        except ValueError:
-            LOG.warning("Magnitude '%s' could not be converted to float.",
-                        magnitude)
-            magnitude = None
+        # If a source is matched to multiple solar system objects, assign the
+        # matches a flag of 1
+        if len(matches)>1:
+            initial_flag = 1
+        else:
+            initial_flag = 0
         
-        # Add match to output table
-        output_row = [transient_number, str(identifier), float(offset_ra),
-                      float(offset_dec), float(offset), magnitude]
-        output_table.add_row(output_row)
+        # Get properties of matches
+        for i_match in range(len(matches)):
+            match_properties = re.split(' +', matches[i_match])
+            match_properties = [x for x in match_properties if len(x) > 0]
+            identifier = match_properties[0]
+            try:
+                int(match_properties[1])
+                offset_ra, offset_dec, offset, magnitude = match_properties[1:5]
+            except ValueError:
+                identifier = " ".join([identifier, match_properties[1]])
+                offset_ra, offset_dec, offset, magnitude = match_properties[2:6]
+            
+            try:
+                magnitude = float(magnitude)
+            except ValueError:
+                LOG.warning("Magnitude '%s' could not be converted to float.",
+                            magnitude)
+                magnitude = None
+        
+            # Add match to output table
+            output_row = [transient_number, str(identifier), float(offset_ra),
+                          float(offset_dec), float(offset), magnitude, initial_flag]
+            output_table.add_row(output_row)
     
-    # If a solar system object was matched to multiple transient sources,
-    # remove all these matches as they are unreliable
+    # If a solar system object was matched to multiple transient sources in the
+    # image, assign it a flag of 2
     unique_objects = np.unique(output_table['ID_SSO'])
     if len(unique_objects) != len(output_table):
         for obj in unique_objects:
             obj_indices = np.where(output_table['ID_SSO'] == obj)[0]
             if len(obj_indices) > 1:
-                LOG.warning("%s was matched to multiple transients. Removing "
-                            "these matches from the SSO catalogue due to "
-                            "unreliability!", obj)
-                output_table.remove_rows(obj_indices)
+                output_table["FLAGS_SSO"][obj_indices] += 2
     
     # Set dummy parameter (dummy means that there were no matches found)
     dummy = False
