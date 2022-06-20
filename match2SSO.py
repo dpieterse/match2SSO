@@ -41,9 +41,9 @@
 # In[ ]:
 
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 __author__ = "Danielle Pieterse"
-KEYWORDS_VERSION = "1.0.6"
+KEYWORDS_VERSION = "1.0.5"
 
 
 # In[ ]:
