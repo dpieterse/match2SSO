@@ -69,7 +69,7 @@ import requests
 import numpy as np
 
 # Third party imports
-from astropy.coordinates import SkyCoord, SkyOffsetFrame
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.table import Table, Column
 from astropy.time import Time
