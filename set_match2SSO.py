@@ -1,9 +1,9 @@
 #==============================================================================
 #Directory structure
 #==============================================================================
-inputFolder = "/media/danielle/LaCie/Danielle/bbversion_1_0_0/"
-softwareFolder = ("/home/danielle/Documents/ESA_project/Observing_analysis/"
-                  + "Asteroid_linking/")
+inputFolder = ("/home/danielle/Documents/ESA_project/Observing_analysis/"
+               + "Asteroid_linking/")
+softwareFolder = ("/home/danielle/Documents/GitHub/")
 databaseFolder = ("/home/danielle/Documents/ESA_project/Observing_analysis/"
                   + "Asteroid_linking/match2SSO/tmp/")
 logFolder = ("/home/danielle/Documents/ESA_project/Observing_analysis/"
@@ -24,11 +24,13 @@ maximalNumberOfAsteroids = 1000
 
 
 #==============================================================================
-#Telescope parameter (see pytz.all_timezones within Python for possible time
+#Telescope parameters (see pytz.all_timezones within Python for possible time
 #zones).
 #==============================================================================
 timeZoneTelescope = {"ML": "Africa/Johannesburg", "BG": "America/Santiago"}
-
+FOV_width = 1.6544 # Size of the FOV in degrees
+#For a square FOV, the FOV_width corresponds to the width and height of the FOV.
+#For a circular FOV, the FOV_width is the diameter of the circle.
 
 #==============================================================================
 #Links to databases of known asteroids (MPC) and known comets (JPL)

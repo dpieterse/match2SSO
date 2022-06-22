@@ -41,9 +41,9 @@
 # In[ ]:
 
 
-__version__ = "1.0.6"
+__version__ = "1.0.7"
 __author__ = "Danielle Pieterse"
-KEYWORDS_VERSION = "1.0.5"
+KEYWORDS_VERSION = "1.0.7"
 
 
 # In[ ]:
@@ -69,7 +69,7 @@ import requests
 import numpy as np
 
 # Third party imports
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, SkyOffsetFrame
 from astropy.io import fits
 from astropy.table import Table, Column
 from astropy.time import Time
@@ -110,6 +110,9 @@ SNR_COLUMN = "SNR_ZOGY" # Negative values correspond to negative transients
 DUMMY_KEYWORD = "TDUMCAT" # Boolean. If True, the catalogue is empty.
 DATE_KEYWORD = "DATE-OBS" # Observation date & time in isot format
 MPC_CODE_KEYWORD = "MPC-CODE" # MPC observatory code of telescope
+CENTRAL_RA_KEYWORD = "RA-CNTR" # Right ascension of the field center, in deg
+CENTRAL_DEC_KEYWORD = "DEC-CNTR" # Declination of the field center, in deg
+LIMMAG_KEYWORD = "T-LMAG" # Transient limiting magnitude
 
 # Default header for the MPC submission file
 DEFAULT_SUBMISSION_HEADER = "".join([
@@ -543,29 +546,45 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
         t_func = time.time()
     LOG.info("Running match2SSO on %s", cat_name)
     
-    made_kod = False
+    # Check if input catalogue exists and is not flagged red
+    is_existing, is_dummy, cat_name = check_input_catalogue(cat_name)
+    if not is_existing:
+        return made_kod
+    del is_existing
     
     # File names
     mpcformat_file = "{}{}".format(rundir, os.path.basename(cat_name).replace(
         "_light.fits", ".fits").replace(".fits", "_MPCformat.txt"))
     sso_cat = cat_name.replace("_light.fits", ".fits").replace(".fits",
                                                                "_sso.fits")
+    predict_cat = sso_cat.replace("_trans", "").replace("_sso.fits",
+                                                        "_sso_predict.fits")
     submission_file = "{}{}.txt".format(
         submission_folder, os.path.basename(sso_cat).replace(".fits",
                                                              "_submit"))
     
-    # Check if output products (SSO catalogue & MPC submission file) exist
-    if os.path.exists(sso_cat) and not OVERWRITE_FILES:
-        LOG.info("SSO catalogue exists and will not be remade.\n Processing "
-                 "steps up to SSO catalogue creation will be skipped.")
+    # Keep track of whether known object database has been made
+    made_kod = False
+    
+    # Create predictions and SSO catalogues in case of a dummy (empty) detection
+    # catalogue
+    if is_dummy:
+        _ = predictions(None, rundir, software_folder, predict_cat, "")
+        create_sso_catalogue(None, rundir, software_folder, sso_cat, 0)
+        return made_kod
+    
+    # Check if output catalogues exist, in which case the known objects database
+    # will not need to be made
+    if os.path.exists(predict_cat) and (os.path.exists(sso_cat) and not
+                                            OVERWRITE_FILES):
+        LOG.info("Prediction and SSO catalogues exist and won't be remade.\n")
         
         # Check for any version of a submission file for this observation
         submission_files = glob.glob(
             "{}*.txt".format(submission_file.replace(".txt", "")))
         if submission_files:
             LOG.info("There is at least one version of an MPC submission file "
-                     "for this observation.\n"
-                     "Skipping submission file creation.")
+                     "for this observation. No new one will be made.\n")
             return made_kod
         
         # Check if MPC-formatted file that the submission creation function
@@ -576,29 +595,16 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
             LOG.critical("Stop running match2SSO on catalogue because of "
                          "unknown MPC code.")
             return made_kod
-        
+    
         # Create a submission file that can be used to submit the detections
         # that were matched to known solar system objects to the MPC
         create_submission_file(sso_cat, mpcformat_file, submission_file,
                                mpc_code)
-        return made_kod
-    
-    # Check if input catalogue exists and is not flagged red
-    is_existing, is_dummy, cat_name = check_input_catalogue(cat_name)
-    if not is_existing:
-        return made_kod
-    del is_existing
-    
-    if is_dummy:
-        sso_cat = cat_name.replace("_light.fits",
-                                   ".fits").replace(".fits", "_sso.fits")
-        if os.path.exists(sso_cat) and not OVERWRITE_FILES:
-            LOG.warning("%s already exists and will not be re-made.", sso_cat)
-            return make_kod
         
-        create_sso_catalogue(None, rundir, software_folder, sso_cat)
+        if not KEEP_TMP:
+            os.remove(mpcformat_file)
+            LOG.info("Removed %s", mpcformat_file)
         return made_kod
-    del is_dummy
     
     # If make_kod, create a new known objects database with a reference epoch
     # corresponding to midnight of the observation night. Also create a
@@ -628,13 +634,26 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
                      "MPC code.")
         return made_kod
     
+    # Make predictions catalogue
+    N_sso = predictions(cat_name, rundir, software_folder, predict_cat, mpc_code)
+    
+    # Check if SSO catalogue and submission file already exist
+    submission_files = glob.glob(
+        "{}*.txt".format(submission_file.replace(".txt", "")))
+    if submission_files and os.path.exists(sso_cat) and not OVERWRITE_FILES:
+        LOG.info("SSO catalogue and submission file exist and won't be remade.\n")
+        if not KEEP_TMP:
+            os.remove(mpcformat_file)
+            LOG.info("Removed %s", mpcformat_file)
+        return made_kod
+    
     # Run astcheck on the MPC-formatted transient file
     astcheck_file = mpcformat_file.replace("_MPCformat.txt",
                                            "_astcheckMatches.txt")
     run_astcheck(mpcformat_file, rundir, astcheck_file)
     
     # Save matches found by astcheck to an SSO catalogue
-    create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat)
+    create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat, N_sso)
     
     # Create a submission file that can be used to submit the detections that
     # were matched to known solar system objects to the MPC
@@ -659,9 +678,10 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
 # ## Core functions in match2SSO
 # * Create known objects catalogue (with asteroids with a max. orbital
 #   uncertainty)
+# * Create catalogue with predictions of asteroids in the FOV
 # * Convert transient catalogue to MPC format
-# * Run astcheck
-# * Save astcheck matches to SSO catalogue
+# * Run matching algorithm (astcheck) on file made in previous step
+# * Save solar system object detections (matches) to SSO catalogue
 # * Create submission file
 
 # In[ ]:
@@ -1036,6 +1056,323 @@ def select_asteroids_on_uncertainty(asteroid_database):
 # In[ ]:
 
 
+def predictions(transient_cat, rundir, software_folder, predict_cat, mpc_code,
+                is_FOV_circle=False):
+    """
+    Use astcheck to predict which asteroids are in the FOV during the
+    observation. Predictions can be made for a circular or square FOV. The
+    function returns the number of asteroids that are estimated to be bright
+    enough to be detected (V mag <= limiting AB magnitude). This is a crude
+    estimate, as no correction for the different type of magnitudes is taken
+    into account.
+    
+    Parameters:
+    -----------
+    transient_cat: string or None
+        Path to and name of the transient catalogue. If None, we will make a
+        dummy (empty) predictions catalogue.
+    rundir: string
+        Directory corresponding to observation night where the temporary output
+        file that astcheck makes will be stored.
+    software_folder: string
+        Folder in which the lunar and jpl_eph packages that are called by
+        match2SSO are stored.
+    predict_cat: string
+        Path to and name of the output catalogue to which the predictions will
+        be saved.
+    mpc_code: string
+        MPC code corresponding to the telescope.
+    is_FOV_circle: boolean
+        Boolean indicating if the FOV is circular. If False, a square FOV is
+        assumed where the sides are aligned with RA & Dec.
+    """
+    mem_use(label='at start of predictions')
+    
+    if TIME_FUNCTIONS:
+        t_func = time.time()
+    
+    if not OVERWRITE_FILES and os.path.exists(predict_cat):
+        LOG.info("Prediction catalogue already exists and won't be re-made.")
+        with fits.open(predict_cat) as hdu:
+            hdr = hdu[1].header
+        return hdr["N-SSO"]
+    
+    # If the transient catalogue was red-flagged, we will not make a predictions
+    # catalogue as there is little use for it.
+    if transient_cat is None:
+        LOG.info("Creating a dummy predictions catalogue.")
+        sso_header = create_sso_header(rundir, software_folder, 0, 0, True,
+                                       False)
+        write2fits(Table(), None, [], predict_cat, start_header=sso_header)
+        if TIME_FUNCTIONS:
+            log_timing_memory(t_func, label='predictions')
+        return 0
+    
+    LOG.info("Making predictions...")
+    
+    # Open header of transient catalogue
+    with fits.open(transient_cat) as hdu:
+        hdr = hdu[1].header
+    
+    # Get the observation date (isot format) and central field coordinates (in
+    # deg) from the header
+    date = hdr[DATE_KEYWORD]
+    if CENTRAL_RA_KEYWORD in hdr.keys() and CENTRAL_DEC_KEYWORD in hdr.keys():
+        ra_field = hdr[CENTRAL_RA_KEYWORD]
+        dec_field = hdr[CENTRAL_DEC_KEYWORD]
+    else:
+        ra_field = hdr["RA"]
+        dec_field = hdr["DEC"]
+    limmag = hdr[LIMMAG_KEYWORD]
+    
+    # Create temporary output file for astcheck results
+    output_file = "{}{}".format(rundir, os.path.basename(transient_cat).replace(
+        "_light", "").replace("_trans.fits", "_sso_predictions.txt"))
+    output_file_content = open(output_file, 'w')
+    
+    if is_FOV_circle:
+        field_radius = 3600.*settingsFile.FOV_width/2.
+    else:
+        #Square FOV. Use the half diagonal of the FOV as the radius.
+        field_radius = 3600.*np.sqrt(2)*settingsFile.FOV_width/2.
+    
+    # Run astcheck from folder containing .sof-file
+    subprocess.call(["astcheck", "-c", str(date), str(ra_field), str(dec_field),
+                     str(mpc_code), "-r{}".format(field_radius), "-h",
+                     "-m{}".format(settingsFile.limitingMagnitude),
+                     "-M{}".format(settingsFile.maximalNumberOfAsteroids)],
+                    stdout=output_file_content, cwd=rundir)
+    output_file_content.close()
+    
+    # Read in astcheck output
+    astcheck_file_content = open(output_file, "r").readlines()
+    astcheck_file_content = remove_astcheck_header_and_footer(
+        astcheck_file_content)
+    
+    # Create table to store solar system bodies and their properties
+    output_columns = {
+        "ID_SSO":       ["12a", "", ""],
+        "RA_SSO":       ["f4", "deg", "%.6f"],
+        "DEC_SSO":      ["f4", "deg", "%.6f"],
+        "V_RA_SSO":     ["f4", "arcsec/hour", "%.4f"],
+        "V_DEC_SSO":    ["f4", "arcsec/hour", "%.4f"],
+        "MAG_V_SSO":    ["f4", "", "%.2f"]
+        }
+    output_table = Table()
+    for key in output_columns.keys():
+        output_table.add_column(Column(name=key, dtype=output_columns[key][0],
+                                       unit=output_columns[key][1]))
+        if output_columns[key][2]:
+            output_table[key].format = output_columns[key][2]
+        
+    # Loop through SSOs and store their properties in the output table
+    for source in astcheck_file_content:
+        source = re.sub('\n$', '', source) # Remove line end character
+        source_properties = re.split(' +', source)
+        if source_properties[0]:
+            identifier = " ".join([source_properties[0], source_properties[1]])
+        else:
+            identifier = source_properties[1]
+        ra_source, dec_source, magnitude, v_ra, v_dec = source_properties[2:]
+        
+        output_row = [identifier, float(ra_source), float(dec_source),
+                      float(v_ra), float(v_dec), float(magnitude)]
+        output_table.add_row(output_row)
+    
+    # Remove temporary astcheck output file
+    if not KEEP_TMP:
+        os.remove(output_file)
+        LOG.info("Removed %s", output_file)
+    
+    # In case of a square FOV, disregard SSOs outside the FOV
+    if not is_FOV_circle and len(output_table)>0:
+        center = SkyCoord(ra_field, dec_field, unit="deg", frame="icrs")
+        sources = SkyCoord(output_table["RA_SSO"],
+                           output_table["DEC_SSO"], unit="deg", frame="icrs")
+        dra, ddec = center.spherical_offsets_to(sources)
+        mask_dist = ((abs(dra.deg) <= settingsFile.FOV_width/2.) &
+                     (abs(ddec.deg) <= settingsFile.FOV_width/2.))
+        output_table = output_table[mask_dist]
+    
+    # Create header for predicted asteroids in FOV
+    i_bright = np.where(output_table["MAG_V_SSO"] <= limmag)[0]
+    N_sso = len(i_bright)
+    if N_sso > 0:
+        dummy = False
+    else:
+        dummy = True
+    sso_header = create_sso_header(rundir, software_folder, 0, N_sso, dummy,
+                                   False)
+    
+    # Save to table
+    write2fits(output_table, None, [], predict_cat, start_header=sso_header)
+    
+    LOG.info("Predictions saved to %s.", predict_cat)
+    if TIME_FUNCTIONS:
+        log_timing_memory(t_func, label='predictions')
+    
+    return N_sso
+
+
+# In[ ]:
+
+
+def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
+                      incl_detections):
+    """
+    Function creates the headers for the SSO catalogue and the SSO predictions
+    catalogue.
+    
+    Parameters:
+    -----------
+    rundir: string
+        Name of the folder in which the symbolic links to the databases are
+        stored. These are used to get the version numbers of the databases.
+    software_folder: string
+        Folder in which the lunar and jpl_eph repositories are located.
+    N_det: int
+        Number of detected solar system objects. Only one matched object is
+        counted per transient detection and if an object is matched to multiple
+        transients, it is also only counted once.
+    N_sso: int
+        Number of solar system objects in the FOV that are supposedly bright
+        enough for a detection (V magnitude < T-LMAG). The difference between V
+        and AB magnitudes is ignored here. This number is therefore a rough
+        prediction for the number of detections.
+    dummy: boolean
+        Boolean indicating whether the catalogue is a dummy catalogue without
+        sources (dummy=True). If False, there are sources in the catalogue.
+    incl_detections: boolean
+        Boolean indicating whether the catalogue is the SSO catalogue -
+        corresponding to detected solar system objects - or not. If not, it is
+        the catalogue containing the predicted objects in the FOV and some of
+        the header keywords will not be included in the header.
+    """
+    mem_use(label='at start of create_sso_header')
+    LOG.info("Creating SSO header.")
+    if TIME_FUNCTIONS:
+        t_func = time.time()
+    
+    # Create empty SSO header
+    header = fits.Header()
+    
+    # Add Python version to SSO header
+    header['PYTHON-V'] = (platform.python_version(), "Python version used")
+    
+    # Get C++ version and add to the SSO header. Based on 
+    # [https://stackoverflow.com/questions/44734397/which-c-standard-is-the-
+    # default-when-compiling-with-g/44735016#44735016]
+    proc = subprocess.run("g++ -dM -E -x c++  /dev/null | grep -F __cplusplus",
+                          capture_output=True, shell=True, check=True)
+    cpp_macro = proc.stdout.decode("utf-8").replace("\n", "").split()[-1]
+    
+    if cpp_macro not in settingsFile.CPPmacro2version.keys():
+        LOG.error("C++ macro unknown: %s", cpp_macro)
+        cpp_version = "None"
+    else:
+        cpp_version = settingsFile.CPPmacro2version[cpp_macro]
+    header['CPP-V'] = (cpp_version, "C++ version used")
+    
+    # Get G++ version and add to SSO header
+    proc = subprocess.run("g++ --version", capture_output=True, shell=True,
+                          check=True)
+    gpp_version = proc.stdout.decode("utf-8").split("\n")[0].split()[-1]
+    header['GPP-V'] = (gpp_version, "G++ version used")
+    
+    # Add match2SSO & header keyword versions to the SSO header
+    header['SSO-V'] = (__version__, "match2SSO version used")
+    header['SSOKW-V'] = (KEYWORDS_VERSION,
+                         "SSO header keywords version used")
+    
+    # Get unique strings with git, signifying the latest commit that was made
+    # to the lunar & jpl_eph repositories and hence signifynig the versions of
+    # these repositories. Save the strings to the SSO header.
+    proc = subprocess.run("git rev-parse --short=4 HEAD", capture_output=True,
+                          shell=True, cwd="{}lunar/".format(software_folder),
+                          check=True)
+    lunar_version = proc.stdout.decode("utf-8").replace("\n", "")
+    header['LUNAR-V'] = (lunar_version, "lunar repository version used")
+    
+    proc = subprocess.run("git rev-parse --short=4 HEAD", capture_output=True,
+                          shell=True, cwd="{}jpl_eph/".format(software_folder),
+                          check=True)
+    jpl_eph_version = proc.stdout.decode("utf-8").replace("\n", "")
+    header['JPLEPH-V'] = (jpl_eph_version, "jpl_eph repository version used")
+    
+    # Add version of JPL lunar & planetary ephemerides file to SSO header
+    header['JPLDE-V'] = ("DE{}"
+                         .format(settingsFile.JPL_ephemerisFile.split(
+                             ".")[-1]), "JPL ephemeris file version used")
+    
+    # Add asteroid database version & reference epoch to the SSO header.
+    # The MPCORB.DAT symbolic link in the run directory refers to the
+    # asteroid database version that was used. The name structure of this
+    # database is: 
+    # asteroid_database_version[yyyymmddThhmm]_epoch[yyyymmddThhmm].dat
+    asteroid_database_version = "None"
+    asteroid_database_epoch = "None"
+    if os.path.exists("{}MPCORB.DAT".format(rundir)):
+        asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
+        asteroid_database_date = os.path.basename(
+            asteroid_database).split("_")[1].replace("version", "")
+        asteroid_database_version = "{}-{}-{}T{}:{}".format(
+            asteroid_database_date[0:4], asteroid_database_date[4:6],
+            asteroid_database_date[6:8], asteroid_database_date[9:11],
+            asteroid_database_date[11:13])
+        reference_epoch = os.path.basename(asteroid_database).split(
+            "_")[2].replace("epoch", "")
+        asteroid_database_epoch = ("{}-{}-{}T{}:{}".format(
+            reference_epoch[0:4], reference_epoch[4:6], reference_epoch[6:8],
+            reference_epoch[9:11], reference_epoch[11:13]))
+    
+    header['ASTDB-V'] = (asteroid_database_version,
+                         "asteroid database version (date in UTC)")
+    header['ASTDB-EP'] = (asteroid_database_epoch,
+                          "asteroid database epoch in UTC")
+    
+    # Add comet database version to the SSO header.
+    # The ELEMENTS.COMET symbolic link in the run directory refers to the
+    # comet database version that was used. The name structure of this
+    # database is: cometDB_version[yyyymmddThhmm].dat
+    comet_database_version = "None"
+    if INCLUDE_COMETS:
+        comet_database = os.readlink("{}ELEMENTS.COMET".format(rundir))
+        comet_database_date = os.path.basename(comet_database).split(
+            "_")[1].replace("version", "")
+        comet_database_version = "{}-{}-{}T{}:{}".format(
+            comet_database_date[0:4], comet_database_date[4:6],
+            comet_database_date[6:8], comet_database_date[9:11],
+            comet_database_date[11:13])
+    
+    header['COMDB-V'] = (comet_database_version,
+                         "comet database version (date in UTC)")
+    
+    # Add matching radius and maximum orbital uncertainty parameter to header
+    if incl_detections:
+        header['RADIUS'] = (float(settingsFile.matchingRadius),
+                            "matching radius in arcsec")
+    header['U-MAX'] = (settingsFile.maxUncertainty,
+                       "maximum orbital uncertainty parameter")
+    
+    # Add number of (predicted) detections to header
+    header['N-SSO'] = (N_sso, "predicted number of bright solar system objects "
+                       + "in the FOV")
+    if incl_detections:
+        header['N-SSODET'] = (N_det, "number of detected solar system objects")
+    
+    # Add keyword indicating whether there is
+    header['SDUMCAT'] = (bool(dummy), "dummy SSO catalogue without sources?")
+    
+    LOG.info("SSO header complete.")
+    if TIME_FUNCTIONS:
+        log_timing_memory(t_func, label='create_sso_header')
+    
+    return header
+
+
+# In[ ]:
+
+
 def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     
     """
@@ -1202,33 +1539,8 @@ def run_astcheck(mpcformat_file, rundir, output_file,
 # In[ ]:
 
 
-def remove_astcheck_header_and_footer(astcheck_file_content):
-    
-    """
-    Before the -h switch was implemented in astcheck, the header and footer
-    needed to be removed manually. Check if astcheck has done this already, or
-    if manual removal is required. Return the content of the astcheck file
-    excluding the header and footer.
-    """
-    
-    # The footer is variable in terms of the number of lines it spans, but it
-    # always starts with the footer_string as defined below and can hence be
-    # recognized by this string.
-    footer_string = "The apparent motion and arc length"
-    header_size = 5 # Number of header lines
-    footer_index = [index for index in range(len(astcheck_file_content)) if                    footer_string in astcheck_file_content[index]]
-    if footer_index:
-        return astcheck_file_content[header_size:footer_index[0]]
-    
-    else:
-        return astcheck_file_content[1:] # Just remove first empty line
-
-
-# In[ ]:
-
-
-def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
-    
+def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat,
+                         N_sso):
     """
     Open the text-file that was produced when running astcheck [astcheck_file]
     and save the information to an SSO catalogue.
@@ -1249,6 +1561,11 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
     sso_cat: string
         Name of the SSO catalogue to be created in which the matches
         are stored.
+    N_sso: int
+        Number of solar system objects in the FOV that are supposedly bright
+        enough for a detection (V magnitude < T-LMAG). The difference between V
+        and AB magnitudes is ignored here. This number is therefore a rough
+        prediction for the number of detections.
     """
     mem_use(label='at start of create_sso_catalogue')
     LOG.info("Converting astcheck output into an SSO catalogue.")
@@ -1263,7 +1580,8 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
     # and an empty SSO catalogue needs to be created.
     if astcheck_file is None:
         LOG.info("Creating a dummy SSO catalogue.")
-        sso_header = create_sso_header(rundir, software_folder, True)
+        sso_header = create_sso_header(rundir, software_folder, 0, N_sso, True,
+                                       True)
         write2fits(Table(), None, [], sso_cat, start_header=sso_header)
         if TIME_FUNCTIONS:
             log_timing_memory(t_func, label='create_sso_catalogue')
@@ -1297,6 +1615,7 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
         output_table.add_column(Column(name=key, dtype=output_columns[key][0],
                                        unit=output_columns[key][1]))
     # Loop over sources
+    N_det = 0
     for index in range(len(indices_separator)-1):
         minimal_index = indices_separator[index]+1
         maximal_index = indices_separator[index+1]
@@ -1312,6 +1631,8 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
         
         if not matches: #Empty list
             continue
+        
+        N_det += 1
         
         # If a source is matched to multiple solar system objects, assign the
         # matches a flag of 1
@@ -1359,7 +1680,8 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
         dummy = True
     
     # Create header for SSO catalogue
-    sso_header = create_sso_header(rundir, software_folder, dummy)
+    sso_header = create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
+                                   True)
     
     write2fits(output_table, None, [], sso_cat, start_header=sso_header)
     
@@ -1368,140 +1690,6 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat):
         log_timing_memory(t_func, label='create_sso_catalogue')
     
     return
-
-
-# In[ ]:
-
-
-def create_sso_header(rundir, software_folder, dummy):
-    
-    """
-    Function creates the header for the SSO catalogue.
-    
-    Parameters:
-    -----------
-    rundir: string
-        Name of the folder in which the symbolic links to the databases are
-        stored. These are used to get the version numbers of the databases.
-    software_folder: string
-        Folder in which the lunar and jpl_eph repositories are located.
-    dummy: boolean
-        Boolean indicating whether the catalogue is a dummy catalogue without
-        sources (dummy=True). If False, there are sources in the catalogue.
-    """
-    mem_use(label='at start of create_sso_header')
-    LOG.info("Creating SSO header.")
-    if TIME_FUNCTIONS:
-        t_func = time.time()
-    
-    # Create empty SSO header
-    header = fits.Header()
-    
-    # Add Python version to SSO header
-    header['PYTHON-V'] = (platform.python_version(), "Python version used")
-    
-    # Get C++ version and add to the SSO header. Based on 
-    # [https://stackoverflow.com/questions/44734397/which-c-standard-is-the-
-    # default-when-compiling-with-g/44735016#44735016]
-    proc = subprocess.run("g++ -dM -E -x c++  /dev/null | grep -F __cplusplus",
-                          capture_output=True, shell=True, check=True)
-    cpp_macro = proc.stdout.decode("utf-8").replace("\n", "").split()[-1]
-    
-    if cpp_macro not in settingsFile.CPPmacro2version.keys():
-        LOG.error("C++ macro unknown: %s", cpp_macro)
-        cpp_version = "None"
-    else:
-        cpp_version = settingsFile.CPPmacro2version[cpp_macro]
-    header['CPP-V'] = (cpp_version, "C++ version used")
-    
-    # Get G++ version and add to SSO header
-    proc = subprocess.run("g++ --version", capture_output=True, shell=True,
-                          check=True)
-    gpp_version = proc.stdout.decode("utf-8").split("\n")[0].split()[-1]
-    header['GPP-V'] = (gpp_version, "G++ version used")
-    
-    # Add match2SSO & header keyword versions to the SSO header
-    header['SSO-V'] = (__version__, "match2SSO version used")
-    header['SSOKW-V'] = (KEYWORDS_VERSION,
-                         "SSO header keywords version used")
-    
-    # Get unique strings with git, signifying the latest commit that was made
-    # to the lunar & jpl_eph repositories and hence signifynig the versions of
-    # these repositories. Save the strings to the SSO header.
-    proc = subprocess.run("git rev-parse --short=4 HEAD", capture_output=True,
-                          shell=True, cwd="{}lunar/".format(software_folder),
-                          check=True)
-    lunar_version = proc.stdout.decode("utf-8").replace("\n", "")
-    header['LUNAR-V'] = (lunar_version, "lunar repository version used")
-    
-    proc = subprocess.run("git rev-parse --short=4 HEAD", capture_output=True,
-                          shell=True, cwd="{}jpl_eph/".format(software_folder),
-                          check=True)
-    jpl_eph_version = proc.stdout.decode("utf-8").replace("\n", "")
-    header['JPLEPH-V'] = (jpl_eph_version, "jpl_eph repository version used")
-    
-    # Add version of JPL lunar & planetary ephemerides file to SSO header
-    header['JPLDE-V'] = ("DE{}"
-                         .format(settingsFile.JPL_ephemerisFile.split(
-                             ".")[-1]), "JPL ephemeris file version used")
-    
-    # Add asteroid database version & reference epoch to the SSO header.
-    # The MPCORB.DAT symbolic link in the run directory refers to the
-    # asteroid database version that was used. The name structure of this
-    # database is: 
-    # asteroid_database_version[yyyymmddThhmm]_epoch[yyyymmddThhmm].dat
-    asteroid_database_version = "None"
-    asteroid_database_epoch = "None"
-    if os.path.exists("{}MPCORB.DAT".format(rundir)):
-        asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
-        asteroid_database_date = os.path.basename(
-            asteroid_database).split("_")[1].replace("version", "")
-        asteroid_database_version = "{}-{}-{}T{}:{}".format(
-            asteroid_database_date[0:4], asteroid_database_date[4:6],
-            asteroid_database_date[6:8], asteroid_database_date[9:11],
-            asteroid_database_date[11:13])
-        reference_epoch = os.path.basename(asteroid_database).split(
-            "_")[2].replace("epoch", "")
-        asteroid_database_epoch = ("{}-{}-{}T{}:{}".format(
-            reference_epoch[0:4], reference_epoch[4:6], reference_epoch[6:8],
-            reference_epoch[9:11], reference_epoch[11:13]))
-    
-    header['ASTDB-V'] = (asteroid_database_version,
-                         "asteroid database version (date in UTC)")
-    header['ASTDB-EP'] = (asteroid_database_epoch,
-                          "asteroid database epoch in UTC")
-    
-    # Add comet database version to the SSO header.
-    # The ELEMENTS.COMET symbolic link in the run directory refers to the
-    # comet database version that was used. The name structure of this
-    # database is: cometDB_version[yyyymmddThhmm].dat
-    comet_database_version = "None"
-    if INCLUDE_COMETS:
-        comet_database = os.readlink("{}ELEMENTS.COMET".format(rundir))
-        comet_database_date = os.path.basename(comet_database).split(
-            "_")[1].replace("version", "")
-        comet_database_version = "{}-{}-{}T{}:{}".format(
-            comet_database_date[0:4], comet_database_date[4:6],
-            comet_database_date[6:8], comet_database_date[9:11],
-            comet_database_date[11:13])
-    
-    header['COMDB-V'] = (comet_database_version,
-                         "comet database version (date in UTC)")
-    
-    # Add matching radius and maximum orbital uncertainty parameter to header
-    header['RADIUS'] = (float(settingsFile.matchingRadius),
-                        "matching radius in arcsec")
-    header['U-MAX'] = (settingsFile.maxUncertainty,
-                       "maximum orbital uncertainty parameter")
-    
-    # Add keyword indicating whether there is
-    header['SDUMCAT'] = (bool(dummy), "dummy SSO catalogue without sources?")
-    
-    LOG.info("SSO header complete.")
-    if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='create_sso_header')
-    
-    return header
 
 
 # In[ ]:
@@ -1697,7 +1885,7 @@ def abbreviate_number(num):
     """
     
     num_dict = {str(index): letter for index, letter in 
-                enumerate("".join(ascii_uppercase, ascii_lowercase), start=10)}
+                enumerate("".join([ascii_uppercase, ascii_lowercase]), start=10)}
     
     if int(num) > 9:
         return num_dict[str(num)]
@@ -2461,6 +2649,31 @@ def find_database_products(rundir):
         return False
     
     return True
+
+
+# In[ ]:
+
+
+def remove_astcheck_header_and_footer(astcheck_file_content):
+    
+    """
+    Before the -h switch was implemented in astcheck, the header and footer
+    needed to be removed manually. Check if astcheck has done this already, or
+    if manual removal is required. Return the content of the astcheck file
+    excluding the header and footer.
+    """
+    
+    # The footer is variable in terms of the number of lines it spans, but it
+    # always starts with the footer_string as defined below and can hence be
+    # recognized by this string.
+    footer_string = "The apparent motion and arc length"
+    header_size = 5 # Number of header lines
+    footer_index = [index for index in range(len(astcheck_file_content)) if                    footer_string in astcheck_file_content[index]]
+    if footer_index:
+        return astcheck_file_content[header_size:footer_index[0]]
+    
+    else:
+        return astcheck_file_content[1:] # Just remove first empty line
 
 
 # In[ ]:
