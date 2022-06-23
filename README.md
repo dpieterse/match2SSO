@@ -26,7 +26,8 @@ Other input files that the software needs are mentioned above under "Installatio
 In addition, _match2SSO_ uses MPCORB.DAT (MPC's asteroid database) and COMET.ELEMENTS (JPL's comet database), but these are downloaded when running the script and hence do not need to be pre-downloaded.
 
 #### Output
-- Solar Sytem Object (SSO) catalogue containing the matches (__sso.fits_). SSO catalogue columns and header keywords are listed here: https://www.overleaf.com/read/zrhqwcbkfqns
+- Solar Sytem Object (SSO) catalogue containing the matches between detections and known solar system objects (__sso.fits_). SSO catalogue columns and header keywords are listed here: https://www.overleaf.com/read/zrhqwcbkfqns
+- Predictions catalogue containing the asteroids that were predicted to be in the FOV during the observation (__sso_predict.fits_). Prediction catalogue columns and header keywords are listed in the overleaf document mentioned above.
 - MPC submission file (__submit.txt_), to allow easy submission of the known object detections to the Minor Planet Center. Submission files are created, but not submitted automatically. 
 
 
@@ -86,9 +87,11 @@ The steps match2SSO performs in the different modes are:
     to the run directory.)
 - **Night mode**
     1. Converts the detection catalogue into an MPC-formatted text file.
-    2. Runs astcheck on that file, to find matches between the detections and known solar system objects. 
-    3. Makes an SSO catalogue containing the matches.
-    4. Makes an MPC submission file of the matches.
+    2. Runs astcheck on the central coordinates of the observation, to make predictions on the known solar system objects in the FOV.
+    3. Makes a prediction catalogue of the known solar system objects in the FOV during the observation.
+    4. Runs astcheck on the MPC-formatted text file, to find matches between the detections and known solar system objects. 
+    5. Makes an SSO catalogue containing the matches.
+    6. Makes an MPC submission file of the matches.
 - **Historic mode**<br/> Runs on a single detection catalogue (observation), a night of observations or a list of observations. The observations are grouped and processed per observing night. The historic mode:
     1. Creates a run directory per observation night
     2. [_Optional_] Downloads asteroid and comet databases to the database folder. (If this step is skipped, the most recently downloaded version of the database will be used.)
@@ -97,7 +100,9 @@ The steps match2SSO performs in the different modes are:
     5. Creates symbolic links in the run directory to the used databases and the observatory codes list.
     6. Run the matching per detection catalogue:<br/>
           a. Converts the detection catalogue into an MPC-formatted text file.
-          <br/>b. Runs astcheck on that file, to find matches between the detections and known solar system objects. 
-          <br/>c. Makes an SSO catalogue containing the matches.
-          <br/>d. Makes an MPC submission file of the matches.<br/>
+          <br/>b. Runs astcheck on the central coordinates of the observation, to make predictions on the known solar system objects in the FOV.
+          <br/>c. Makes a prediction catalogue of the known solar system objects in the FOV during the observation.
+          <br/>d. Runs astcheck on the MPC-formatted text file, to find matches between the detections and known solar system objects. 
+          <br/>e. Makes an SSO catalogue containing the matches.
+          <br/>f. Makes an MPC submission file of the matches.<br/>
     7. [_Optional_] Removes the run directory, including files in it (SOF-formatted known objects database, symbolic links, MPC-formatted detection file, astcheck output text file). Also removes the integrated asteroid database.
