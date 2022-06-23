@@ -592,8 +592,7 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
         # anymore, remake this file first.
         mpc_code = convert_fits2mpc(cat_name, mpcformat_file, software_folder)
         if mpc_code is None:
-            LOG.critical("Stop running match2SSO on catalogue because of "
-                         "unknown MPC code.")
+            LOG.critical("Unknown MPC code - submission file will not be made.")
             return made_kod
     
         # Create a submission file that can be used to submit the detections
@@ -613,12 +612,6 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
         midnight = night_start + timedelta(days=0.5)
         create_known_objects_database(midnight, rundir, database_folder,
                                       redownload_db)
-        
-        # Check if the run directory contains the proper known objects database
-        # files for further processing
-        if not find_database_products(rundir):
-            return made_kod
-        
         made_kod = True
         
         # Make symbolic link to observatory codes list if it doesn't exist yet
@@ -630,8 +623,10 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
     # Convert the transient catalogue to an MPC-formatted text file
     mpc_code = convert_fits2mpc(cat_name, mpcformat_file, software_folder)
     if mpc_code is None:
-        LOG.critical("Stop running match2SSO on catalogue because of unknown "
-                     "MPC code.")
+        LOG.critical("Matching cannot be done because of unknown MPC code.")
+        LOG.info("Creating dummy catalogues.")
+        _ = predictions(None, rundir, software_folder, predict_cat, "")
+        create_sso_catalogue(None, rundir, software_folder, sso_cat, 0)
         return made_kod
     
     # Make predictions catalogue
