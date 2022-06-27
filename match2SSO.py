@@ -590,11 +590,17 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
         # Check if MPC-formatted file that the submission creation function
         # needs exists and get the MPC code. If it doesn't exist yet /
         # anymore, remake this file first.
-        mpc_code = convert_fits2mpc(cat_name, mpcformat_file, software_folder)
+        mpc_code, create_dummy = convert_fits2mpc(cat_name, mpcformat_file,
+                                                  software_folder)
         if mpc_code is None:
             LOG.critical("Unknown MPC code - submission file will not be made.")
             return made_kod
-    
+        
+        if create_dummy:
+            # No submission file will need to be made, as the SSO catalogue is a
+            # dummy (empty) catalogue.
+            return made_kod
+        
         # Create a submission file that can be used to submit the detections
         # that were matched to known solar system objects to the MPC
         create_submission_file(sso_cat, mpcformat_file, submission_file,
@@ -603,6 +609,21 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
         if not KEEP_TMP:
             os.remove(mpcformat_file)
             LOG.info("Removed %s", mpcformat_file)
+        return made_kod
+    
+    # Convert the transient catalogue to an MPC-formatted text file
+    mpc_code, create_dummy = convert_fits2mpc(cat_name, mpcformat_file,
+                                              software_folder)
+    if mpc_code is None:
+        LOG.critical("Matching cannot be done because of unknown MPC code.")
+        LOG.info("Creating dummy catalogues.")
+        _ = predictions(None, rundir, software_folder, predict_cat, "")
+        create_sso_catalogue(None, rundir, software_folder, sso_cat, 0)
+        return made_kod
+    
+    if create_dummy:
+        _ = predictions(None, rundir, software_folder, predict_cat, "")
+        create_sso_catalogue(None, rundir, software_folder, sso_cat, 0)
         return made_kod
     
     # If make_kod, create a new known objects database with a reference epoch
@@ -619,15 +640,6 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
             LOG.info("Creating symbolic link to ObsCodes.html")
             os.symlink("{}ObsCodes.html".format(software_folder),
                        "{}ObsCodes.html".format(rundir))
-    
-    # Convert the transient catalogue to an MPC-formatted text file
-    mpc_code = convert_fits2mpc(cat_name, mpcformat_file, software_folder)
-    if mpc_code is None:
-        LOG.critical("Matching cannot be done because of unknown MPC code.")
-        LOG.info("Creating dummy catalogues.")
-        _ = predictions(None, rundir, software_folder, predict_cat, "")
-        create_sso_catalogue(None, rundir, software_folder, sso_cat, 0)
-        return made_kod
     
     # Make predictions catalogue
     N_sso = predictions(cat_name, rundir, software_folder, predict_cat, mpc_code)
@@ -1387,6 +1399,10 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     unclear, and as we use the date of the new image as the observation date,
     asteroids in the reference images are not useful.
     
+    Function returns the MPC Observatory code of the telescope with which the
+    observation was made, and a boolean indicating whether there were detections
+    to be converted (dummy = False) or not (dummy = True).
+    
     Parameters:
     -----------
     transient_cat: string
@@ -1415,12 +1431,12 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
                                         skiprows=1)['Code'])[:-1]:
         LOG.critical("MPC code %s is not in the MPC list of observatory codes",
                      mpc_code)
-        return None
+        return None, True
     
     # Check if MPC-formatted file exists and if it should be overwritten or not
     if not OVERWRITE_FILES and os.path.exists(mpcformat_file):
         LOG.info("MPC-formatted file already exists and will not re-made.")
-        return mpc_code
+        return mpc_code, False
     
     # Get observation date in the right format
     date_obs = Time(transient_header[DATE_KEYWORD], format='isot').datetime
@@ -1436,6 +1452,13 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     # Remove negative transients
     index_positives = np.where(detections[SNR_COLUMN]>=0)[0]
     detections = detections[index_positives]
+    
+    # Check if there are positive transients to include
+    if len(detections) == 0:
+        dummy = True
+        LOG.info("No (positive) sources available for linking.")
+        return mpc_code, dummy
+    dummy = False
     
     # Create output file
     mpcformat_file_content = open(mpcformat_file, "w")
@@ -1471,7 +1494,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label='convert_fits2mpc')
     
-    return mpc_code
+    return mpc_code, dummy
 
 
 # In[ ]:
