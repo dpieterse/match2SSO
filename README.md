@@ -1,7 +1,7 @@
 # match2SSO
 Python code to match ***single*** telescope detections to ***known solar system objects*** based on their ***position***. To keep the matching accurate, only ***known objects with small orbital uncertainties*** are used in the matching. The maximum allowed uncertainty is set in _set_match2SSO.py_.
 
-Asteroid matching is done by default. Comet matching is only done when adding ```--includecomets True```. Currently, comet matching is not performed by default, as a selection based on orbital uncertainty is less straight forward for comets and Bill Gray's _integrat.cpp_ does not work on JPL's comet database.
+Asteroid matching is done by default. Comet matching is only done when ```include_comets = True``` (in the settings file). Currently, comet matching is not performed by default, as a selection based on orbital uncertainty is less straight forward for comets and Bill Gray's _integrat.cpp_ does not work on JPL's comet database.
 
 _match2SSO_ was created for the [MeerLICHT](http://www.meerlicht.uct.ac.za/) & [BlackGEM](https://astro.ru.nl/blackgem/) telescopes. Originally written in Jupyter Notebook, it's also available as an executable Python script. It's compatible with MeerLICHT's image processing software (BlackBOX & ZOGY) version 1.0.0 and up.
 
@@ -57,12 +57,7 @@ Allowed combinations of the above-mentioned parameters are:
 
 ### Other command line parameters:
 - ```--telescope``` (Abbreviated) telescope name. Allows dictionaries in the settings file _set_match2SSO.py_ with different parameter values for different telescopes.
-- ```--newdatabases``` Boolean to indicate if new known object databases need to be downloaded. If False, the last downloaded version of the database will be used (if it exists).
-- ```--includecomets``` Boolean to indicate if comets should be included in the matching. Including comet matching currently leads to issues.
 - ```--logname``` Name of the log file
-- ```--keep_tmp``` Boolean to indicate if temporary files need to be kept.
-- ```--overwrite``` Boolean to indicate whether existing files are allowed to be overwritten.
-- ```--timing``` Boolean to indicate whether functions need to be wall-timed. Timing information is saved to the log.
 
 
 ### Multi-processing
