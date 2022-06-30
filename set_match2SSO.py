@@ -4,7 +4,7 @@
 inputFolder = "/idia/projects/meerlicht/ML1/red/"
 softwareFolder = "/Software/match2SSO/"
 databaseFolder = "/idia/projects/meerlicht/ML1/tmp/match2SSO/"
-logFolder = "/idia/users/dpieterse/Slurm/logs/"
+logFolder = "/idia/projects/meerlicht/ML1/log/match2SSO/"
 submissionFolder = "/idia/projects/meerlicht/ML1/mpc/"
 
 #==============================================================================
