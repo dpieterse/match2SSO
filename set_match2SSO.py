@@ -1,16 +1,11 @@
 #==============================================================================
 #Directory structure
 #==============================================================================
-inputFolder = ("/home/danielle/Documents/ESA_project/Observing_analysis/"
-               + "Asteroid_linking/")
-softwareFolder = ("/home/danielle/Documents/GitHub/")
-databaseFolder = ("/home/danielle/Documents/ESA_project/Observing_analysis/"
-                  + "Asteroid_linking/match2SSO/tmp/")
-logFolder = ("/home/danielle/Documents/ESA_project/Observing_analysis/"
-             + "Asteroid_linking/match2SSO/log/")
-submissionFolder = ("/home/danielle/Documents/ESA_project/Observing_analysis/"
-                    + "Asteroid_linking/match2SSO/MPCsubmissions/")
-
+inputFolder = "/idia/projects/meerlicht/ML1/red/"
+softwareFolder = "/Software/match2SSO/"
+databaseFolder = "/idia/projects/meerlicht/ML1/tmp/match2SSO/"
+logFolder = "/idia/users/dpieterse/Slurm/logs/"
+submissionFolder = "/idia/projects/meerlicht/ML1/mpc/"
 
 #==============================================================================
 #Astcheck parameters
