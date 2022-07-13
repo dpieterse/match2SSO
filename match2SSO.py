@@ -31,19 +31,17 @@
 # if KEEP_TMP is False, all temporary files and folders are removed
 # except for the most recent, unintegrated version of the asteroid &
 # comet databases in the databaseFolder.
-# For the night mode, we'll need to implement the cleaning function in
-# BlackBOX that is commented out at the end of the night mode section in
-# run_match2SSO. (As the night mode will be run in parallel on different
-# catalogues and the individual night mode processes don't communicate.)
+# The day mode will remove the temporary run directory created by the
+# night mode if KEEP_TMP is False.
 
 # ## Python packages and settings
 
 # In[ ]:
 
 
-__version__ = "1.0.7"
+__version__ = "1.1.0"
 __author__ = "Danielle Pieterse"
-KEYWORDS_VERSION = "1.0.7"
+KEYWORDS_VERSION = "1.1.0"
 
 
 # In[ ]:
@@ -262,6 +260,21 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
             night_start = local_timezone.localize(datetime.strptime(
                 night_start, "%Y%m%d %H%M%S"))
         
+        # Delete the temporary products made in the night mode of the previous
+        # night.
+        if not KEEP_TMP:
+            night_previous = (datetime.strptime(night_start, "%Y%m%d %H%M%S")
+                              - timedelta(days=1)).strftime("%Y%m%d")
+            rundir_previous = "{}{}/".format(database_folder, night_previous)
+            
+            if os.path.exists("{}MPCORB.DAT".format(rundir_previous)):
+                asteroid_database = os.readlink("{}MPCORB.DAT"
+                                                .format(rundir_previous))
+                if "epoch" in asteroid_database:
+                    os.remove(asteroid_database)
+                    LOG.info("Removed %s", asteroid_database)
+            remove_tmp_folder(rundir_previous)
+        
         # Create a run directory corresponding to the observation night
         rundir = ("{}{}/".format(database_folder,
                                  night_start.strftime("%Y%m%d")))
@@ -337,18 +350,8 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
         
         # Beware that the run directory created for the processing of the
         # catalogue is not removed. This is the case because a single parallel
-        # process does not know about the rest. A cleaning function should be
-        # run at the end of the nightly processing if one wants to remove the
-        # run directory. Also delete the integrated asteroid database that was
-        # made during the day mode at this time. See code below.
-        # if not KEEP_TMP:
-        #     if os.path.exists("{}MPCORB.DAT".format(rundir)):
-        #         asteroid_database = os.readlink("{}MPCORB.DAT"
-        #                                             .format(rundir))
-        #         if "epoch" in asteroid_database:
-        #             os.remove(asteroid_database)
-        #             LOG.info("Removed %s", asteroid_database)
-        #     remove_tmp_folder(rundir)
+        # process does not know about the rest. A cleaning function can be run
+        # in the day mode.
     
     
     elif mode == "historic":
@@ -1291,19 +1294,13 @@ def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
     header['SSOKW-V'] = (KEYWORDS_VERSION,
                          "SSO header keywords version used")
     
-    # Get unique strings with git, signifying the latest commit that was made
-    # to the lunar & jpl_eph repositories and hence signifynig the versions of
-    # these repositories. Save the strings to the SSO header.
-    proc = subprocess.run("git rev-parse --short=4 HEAD", capture_output=True,
-                          shell=True, cwd="{}lunar/".format(software_folder),
-                          check=True)
-    lunar_version = proc.stdout.decode("utf-8").replace("\n", "")
+    # Get the versions of the lunar & jpl_eph repositories. The versions are
+    # given by unique strings signifying the latest commit that was made to the
+    # repositories. Save the strings to the SSO header.
+    lunar_version = retrieve_version("lunar", software_folder)
     header['LUNAR-V'] = (lunar_version, "lunar repository version used")
     
-    proc = subprocess.run("git rev-parse --short=4 HEAD", capture_output=True,
-                          shell=True, cwd="{}jpl_eph/".format(software_folder),
-                          check=True)
-    jpl_eph_version = proc.stdout.decode("utf-8").replace("\n", "")
+    jpl_eph_version = retrieve_version("jpl_eph", software_folder)
     header['JPLEPH-V'] = (jpl_eph_version, "jpl_eph repository version used")
     
     # Add version of JPL lunar & planetary ephemerides file to SSO header
@@ -2692,6 +2689,39 @@ def remove_astcheck_header_and_footer(astcheck_file_content):
     
     else:
         return astcheck_file_content[1:] # Just remove first empty line
+
+
+# In[ ]:
+
+
+def retrieve_version(package_name, software_folder):
+    
+    """
+    Function retrieves the string corresponding to the version of the software
+    package, from a versions.txt file in the software folder. In this file, each
+    line should correspond to a different package and should contain the package
+    name and the version string, separated by a space.
+    
+    Parameters:
+    -----------
+    package_name: string
+        Name of the software package, as listed in versions.txt
+    software_folder: string
+        Name of the software folder that contains the versions.txt file.
+    """
+    
+    try:
+        versions_file = open("{}versions.txt".format(software_folder))
+        for line in versions_file:
+            if package_name in line:
+                line = line.replace("\n","")
+                vers = line.split(" ")[1]
+                break
+        versions_file.close()
+    except:
+        vers = None
+    
+    return vers
 
 
 # In[ ]:
