@@ -263,8 +263,8 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
         # Delete the temporary products made in the night mode of the previous
         # night.
         if not KEEP_TMP:
-            night_previous = (datetime.strptime(night_start, "%Y%m%d %H%M%S")
-                              - timedelta(days=1)).strftime("%Y%m%d")
+            night_previous = (night_start - timedelta(days=1)
+                             ).strftime("%Y%m%d")
             rundir_previous = "{}{}/".format(database_folder, night_previous)
             
             if os.path.exists("{}MPCORB.DAT".format(rundir_previous)):
