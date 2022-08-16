@@ -59,6 +59,7 @@ import resource
 import platform
 import shutil
 import subprocess
+from math import sqrt
 from datetime import datetime, timedelta
 from pathlib import Path
 from string import ascii_lowercase, ascii_uppercase
@@ -83,10 +84,10 @@ import set_match2SSO as settingsFile # Load match2SSO settings file
 
 
 # Set log format and global logging constants
-LOG_FORMAT = ('%(asctime)s.%(msecs)03d [%(levelname)s, %(process)s] '
-              '%(message)s [%(funcName)s, line %(lineno)d]')
-DATE_FORMAT = '%Y-%m-%dT%H:%M:%S'
-logging.basicConfig(level='INFO', format=LOG_FORMAT, datefmt=DATE_FORMAT)
+LOG_FORMAT = ("%(asctime)s.%(msecs)03d [%(levelname)s, %(process)s] "
+              "%(message)s [%(funcName)s, line %(lineno)d]")
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
+logging.basicConfig(level="INFO", format=LOG_FORMAT, datefmt=DATE_FORMAT)
 LOG_FORMATTER = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
 logging.Formatter.converter = time.gmtime # Convert time in logger to UTC
 LOG = logging.getLogger()
@@ -229,14 +230,14 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     if not check_settings():
         return
     folders = load_and_check_folders(tel)
-    if not folders: # Empty list
+    if not folders: # Empty tuple
         return
     input_folder, software_folder, database_folder, log_folder,         submission_folder = folders
     
     # Logging
     setup_logfile(logname, log_folder)
     LOG.info("Mode: %s", mode)
-    mem_use(label='at start of run_match2SSO')
+    mem_use(label="at start of run_match2SSO")
     
     # Get local noon corresponding to the night start in case date2process or
     # cat2process are specified. night_start is a datetime object (incl.
@@ -300,7 +301,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
         
         # Check for known object database products
         if not find_database_products(rundir):
-            log_timing_memory(t_glob, label='run_match2SSO')
+            log_timing_memory(t_glob, label="run_match2SSO")
             logging.shutdown()
             return
         
@@ -370,7 +371,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
             if not catalogues2process:
                 LOG.critical("No light transient catalogues exist for night "
                              "%s", date2process)
-                log_timing_memory(t_glob, label='run_match2SSO')
+                log_timing_memory(t_glob, label="run_match2SSO")
                 logging.shutdown()
                 return
             
@@ -382,16 +383,12 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
             LOG.info("Running historic mode on catalogue list: \n%s",
                      list2process)
             with open(list2process, "r") as catalogue_list:
-                listed_catalogues = [name.strip() for name in catalogue_list                                      if name[0] != '#']
+                catalogues2process = [name.strip() for name in catalogue_list                                       if name[0] != "#"]
             
             # Order by observation date (noon that equals the start of the
             # observation day)
-            noons = []
-            catalogues2process = []
-            for cat_name in listed_catalogues:
-                noon = get_night_start_from_date(cat_name, tel)
-                noons.append(noon.strftime("%Y%m%d %H%M%S"))
-                catalogues2process.append(cat_name)
+            noons = [get_night_start_from_date(cat_name, tel).strftime(
+                "%Y%m%d %H%M%S") for cat_name in catalogues2process]
             
             # Process files per night
             LOG.info("Catalogue list spans %i nights", len(np.unique(noons)))
@@ -420,7 +417,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
                 first_night = False
     
     LOG.info("Finished running match2SSO.")
-    log_timing_memory(t_glob, label='run_match2SSO')
+    log_timing_memory(t_glob, label="run_match2SSO")
     logging.shutdown()
     
     return
@@ -493,7 +490,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
         remove_tmp_folder(rundir)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='match_catalogues_single_night')
+        log_timing_memory(t_func, label="match_catalogues_single_night")
     
     return
 
@@ -544,7 +541,7 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
         the known objects database. Alternatively, the most recent, previously
         downloaded version of the databases are used.
     """
-    mem_use(label='at start of match_single_catalogue')
+    mem_use(label="at start of match_single_catalogue")
     if TIME_FUNCTIONS:
         t_func = time.time()
     LOG.info("Running match2SSO on %s", cat_name)
@@ -680,7 +677,7 @@ def match_single_catalogue(cat_name, rundir, software_folder, database_folder,
         LOG.info("Removed %s", astcheck_file)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='match_single_catalogue')
+        log_timing_memory(t_func, label="match_single_catalogue")
     
     return made_kod
 
@@ -838,7 +835,7 @@ def download_database(sso_type, redownload_db, database_folder):
             LOG.info("Removing older %s database versions.", sso_type)
             for old_database in existing_databases:
                 os.remove(old_database)
-                LOG.info('Removed %s.', old_database)
+                LOG.info("Removed %s.", old_database)
     else:
         #Retrieve most recent (unintegrated) database version. If there is no
         #unintegrated database, retrieve the most recent integrated one. Empty
@@ -854,7 +851,7 @@ def download_database(sso_type, redownload_db, database_folder):
         LOG.info("%s database version %s", sso_type, database_version)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_subfunc, label='downloadDatabase ({})'
+        log_timing_memory(t_subfunc, label="downloadDatabase ({})"
                           .format(sso_type))
     
     return database_name, database_version
@@ -893,7 +890,7 @@ def create_known_objects_database(midnight, rundir, database_folder,
         integrated to the observation epoch (midnight on the observation
         night).
     """
-    mem_use(label='at start of create_known_objects_database')
+    mem_use(label="at start of create_known_objects_database")
     if TIME_FUNCTIONS:
         t_func = time.time()
     
@@ -939,7 +936,7 @@ def create_known_objects_database(midnight, rundir, database_folder,
                         "-f{}".format(settingsFile.JPL_ephemerisFile)],
                        cwd=database_folder, check=True)
         if TIME_FUNCTIONS:
-            log_timing_memory(t_subtiming, label='integrat')
+            log_timing_memory(t_subtiming, label="integrat")
         
         # Remove temporary file created by integrat
         if os.path.exists("{}ickywax.ugh".format(database_folder)):
@@ -961,7 +958,7 @@ def create_known_objects_database(midnight, rundir, database_folder,
         os.symlink("{}cometDB_version{}.dat".format(
             database_folder, comet_database_version), symlink_comet_database)
         LOG.info("Created symbolic link %s", symlink_comet_database)
-    mem_use(label='after creating symbolic links to the databases')
+    mem_use(label="after creating symbolic links to the databases")
     
     # Combine the known comets and asteroids into a SOF file, which astcheck
     # will then use as input
@@ -972,8 +969,8 @@ def create_known_objects_database(midnight, rundir, database_folder,
     subprocess.run("mpc2sof", cwd=rundir, check=True)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_subtiming, label='mpc2sof')
-        log_timing_memory(t_func, label='create_known_objects_database')
+        log_timing_memory(t_subtiming, label="mpc2sof")
+        log_timing_memory(t_func, label="create_known_objects_database")
     LOG.info("Finished loading and formatting external databases.")
     
     return
@@ -998,7 +995,7 @@ def select_asteroids_on_uncertainty(asteroid_database):
     asteroid_database: string
         Name of the full asteroid database (MPCORB-formatted text-file).
     """
-    mem_use(label='at start of select_asteroids_on_uncertainty')
+    mem_use(label="at start of select_asteroids_on_uncertainty")
     
     if settingsFile.maxUncertainty is None:
         LOG.info("All known solar system bodies are used in the matching, "
@@ -1058,7 +1055,7 @@ def select_asteroids_on_uncertainty(asteroid_database):
     LOG.info("Asteroid database now only includes sources with U <= %s",
              settingsFile.maxUncertainty)
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='select_asteroids_on_uncertainty')
+        log_timing_memory(t_func, label="select_asteroids_on_uncertainty")
     
     return
 
@@ -1096,7 +1093,7 @@ def predictions(transient_cat, rundir, software_folder, predict_cat, mpc_code,
         Boolean indicating if the FOV is circular. If False, a square FOV is
         assumed where the sides are aligned with RA & Dec.
     """
-    mem_use(label='at start of predictions')
+    mem_use(label="at start of predictions")
     
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1115,7 +1112,7 @@ def predictions(transient_cat, rundir, software_folder, predict_cat, mpc_code,
                                        False)
         write2fits(Table(), None, [], predict_cat, start_header=sso_header)
         if TIME_FUNCTIONS:
-            log_timing_memory(t_func, label='predictions')
+            log_timing_memory(t_func, label="predictions")
         return 0
     
     LOG.info("Making predictions...")
@@ -1138,13 +1135,13 @@ def predictions(transient_cat, rundir, software_folder, predict_cat, mpc_code,
     # Create temporary output file for astcheck results
     output_file = "{}{}".format(rundir, os.path.basename(transient_cat).replace(
         "_light", "").replace("_trans.fits", "_sso_predictions.txt"))
-    output_file_content = open(output_file, 'w')
+    output_file_content = open(output_file, "w")
     
     if is_FOV_circle:
         field_radius = 3600.*settingsFile.FOV_width/2.
     else:
         #Square FOV. Use the half diagonal of the FOV as the radius.
-        field_radius = 3600.*np.sqrt(2)*settingsFile.FOV_width/2.
+        field_radius = 3600.*sqrt(2)*settingsFile.FOV_width/2.
     
     # Run astcheck from folder containing .sof-file
     subprocess.call(["astcheck", "-c", str(date), str(ra_field), str(dec_field),
@@ -1177,16 +1174,16 @@ def predictions(transient_cat, rundir, software_folder, predict_cat, mpc_code,
         
     # Loop through SSOs and store their properties in the output table
     for source in astcheck_file_content:
-        source = re.sub('\n$', '', source) # Remove line end character
-        source_properties = re.split(' +', source)
+        source = re.sub("\n$", "", source) # Remove line end character
+        source_properties = re.split(" +", source)
         if source_properties[0]:
             identifier = " ".join([source_properties[0], source_properties[1]])
         else:
             identifier = source_properties[1]
         ra_source, dec_source, magnitude, v_ra, v_dec = source_properties[2:]
         
-        output_row = [identifier, float(ra_source), float(dec_source),
-                      float(v_ra), float(v_dec), float(magnitude)]
+        output_row = (identifier, float(ra_source), float(dec_source),
+                      float(v_ra), float(v_dec), float(magnitude))
         output_table.add_row(output_row)
     
     # Remove temporary astcheck output file
@@ -1219,7 +1216,7 @@ def predictions(transient_cat, rundir, software_folder, predict_cat, mpc_code,
     
     LOG.info("Predictions saved to %s.", predict_cat)
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='predictions')
+        log_timing_memory(t_func, label="predictions")
     
     return N_sso
 
@@ -1258,7 +1255,7 @@ def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
         the catalogue containing the predicted objects in the FOV and some of
         the header keywords will not be included in the header.
     """
-    mem_use(label='at start of create_sso_header')
+    mem_use(label="at start of create_sso_header")
     LOG.info("Creating SSO header.")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1267,7 +1264,7 @@ def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
     header = fits.Header()
     
     # Add Python version to SSO header
-    header['PYTHON-V'] = (platform.python_version(), "Python version used")
+    header["PYTHON-V"] = (platform.python_version(), "Python version used")
     
     # Get C++ version and add to the SSO header. Based on 
     # [https://stackoverflow.com/questions/44734397/which-c-standard-is-the-
@@ -1281,30 +1278,30 @@ def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
         cpp_version = "None"
     else:
         cpp_version = settingsFile.CPPmacro2version[cpp_macro]
-    header['CPP-V'] = (cpp_version, "C++ version used")
+    header["CPP-V"] = (cpp_version, "C++ version used")
     
     # Get G++ version and add to SSO header
     proc = subprocess.run("g++ --version", capture_output=True, shell=True,
                           check=True)
     gpp_version = proc.stdout.decode("utf-8").split("\n")[0].split()[-1]
-    header['GPP-V'] = (gpp_version, "G++ version used")
+    header["GPP-V"] = (gpp_version, "G++ version used")
     
     # Add match2SSO & header keyword versions to the SSO header
-    header['SSO-V'] = (__version__, "match2SSO version used")
-    header['SSOKW-V'] = (KEYWORDS_VERSION,
+    header["SSO-V"] = (__version__, "match2SSO version used")
+    header["SSOKW-V"] = (KEYWORDS_VERSION,
                          "SSO header keywords version used")
     
     # Get the versions of the lunar & jpl_eph repositories. The versions are
     # given by unique strings signifying the latest commit that was made to the
     # repositories. Save the strings to the SSO header.
     lunar_version = retrieve_version("lunar", software_folder)
-    header['LUNAR-V'] = (lunar_version, "lunar repository version used")
+    header["LUNAR-V"] = (lunar_version, "lunar repository version used")
     
     jpl_eph_version = retrieve_version("jpl_eph", software_folder)
-    header['JPLEPH-V'] = (jpl_eph_version, "jpl_eph repository version used")
+    header["JPLEPH-V"] = (jpl_eph_version, "jpl_eph repository version used")
     
     # Add version of JPL lunar & planetary ephemerides file to SSO header
-    header['JPLDE-V'] = ("DE{}"
+    header["JPLDE-V"] = ("DE{}"
                          .format(settingsFile.JPL_ephemerisFile.split(
                              ".")[-1]), "JPL ephemeris file version used")
     
@@ -1313,8 +1310,7 @@ def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
     # asteroid database version that was used. The name structure of this
     # database is: 
     # asteroid_database_version[yyyymmddThhmm]_epoch[yyyymmddThhmm].dat
-    asteroid_database_version = "None"
-    asteroid_database_epoch = "None"
+    asteroid_database_version, asteroid_database_epoch = "None", "None"
     if os.path.exists("{}MPCORB.DAT".format(rundir)):
         asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
         asteroid_database_date = os.path.basename(
@@ -1329,9 +1325,9 @@ def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
             reference_epoch[0:4], reference_epoch[4:6], reference_epoch[6:8],
             reference_epoch[9:11], reference_epoch[11:13]))
     
-    header['ASTDB-V'] = (asteroid_database_version,
+    header["ASTDB-V"] = (asteroid_database_version,
                          "asteroid database version (date in UTC)")
-    header['ASTDB-EP'] = (asteroid_database_epoch,
+    header["ASTDB-EP"] = (asteroid_database_epoch,
                           "asteroid database epoch in UTC")
     
     # Add comet database version to the SSO header.
@@ -1348,28 +1344,28 @@ def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
             comet_database_date[6:8], comet_database_date[9:11],
             comet_database_date[11:13])
     
-    header['COMDB-V'] = (comet_database_version,
+    header["COMDB-V"] = (comet_database_version,
                          "comet database version (date in UTC)")
     
     # Add matching radius and maximum orbital uncertainty parameter to header
     if incl_detections:
-        header['RADIUS'] = (float(settingsFile.matchingRadius),
+        header["RADIUS"] = (float(settingsFile.matchingRadius),
                             "matching radius in arcsec")
-    header['U-MAX'] = (settingsFile.maxUncertainty,
+    header["U-MAX"] = (settingsFile.maxUncertainty,
                        "maximum orbital uncertainty parameter")
     
     # Add number of (predicted) detections to header
-    header['N-SSO'] = (N_sso, "predicted number of bright solar system objects "
-                       + "in the FOV")
+    header["N-SSO"] = (N_sso, "predicted number of bright solar system objects "
+                       "in the FOV")
     if incl_detections:
-        header['N-SSODET'] = (N_det, "number of detected solar system objects")
+        header["N-SSODET"] = (N_det, "number of detected solar system objects")
     
     # Add keyword indicating whether there is
-    header['SDUMCAT'] = (bool(dummy), "dummy SSO catalogue without sources?")
+    header["SDUMCAT"] = (bool(dummy), "dummy SSO catalogue without sources?")
     
     LOG.info("SSO header complete.")
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='create_sso_header')
+        log_timing_memory(t_func, label="create_sso_header")
     
     return header
 
@@ -1411,7 +1407,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
         Folder in which the MPC observatory codes list (Obscodes.html) is
         stored.
     """
-    mem_use(label='at start of convert_fits2mpc')
+    mem_use(label="at start of convert_fits2mpc")
     LOG.info("Converting transient catalogue to MPC-format.")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1425,7 +1421,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     if mpc_code not in list(pd.read_fwf("{}ObsCodes.html"
                                         .format(software_folder),
                                         widths=[4, 2000], 
-                                        skiprows=1)['Code'])[:-1]:
+                                        skiprows=1)["Code"])[:-1]:
         LOG.critical("MPC code %s is not in the MPC list of observatory codes",
                      mpc_code)
         return None, True
@@ -1436,7 +1432,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
         return mpc_code, False
     
     # Get observation date in the right format
-    date_obs = Time(transient_header[DATE_KEYWORD], format='isot').datetime
+    date_obs = Time(transient_header[DATE_KEYWORD], format="isot").datetime
     decimal_day = date_obs.day + 1./24.*(
         date_obs.hour + 1./60.*(date_obs.minute + 1./60.*(
             date_obs.second + date_obs.microsecond/10.**6)))
@@ -1472,13 +1468,13 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
         # Get the coordinates and magnitude of the source
         coord = SkyCoord(detections[RA_COLUMN][detection_index],
                          detections[DEC_COLUMN][detection_index],
-                         unit='deg', frame='icrs') 
+                         unit="deg", frame="icrs") 
         mag = "{:.1f}".format(detections[MAG_COLUMN][detection_index])
         
         line = "".join([line, "{} {}          {} G      {}"
-                        .format(coord.to_string('hmsdms', sep=' ',
+                        .format(coord.to_string("hmsdms", sep=" ",
                                                 precision=2)[:11],
-                                coord.to_string('hmsdms', sep=' ',
+                                coord.to_string("hmsdms", sep=" ",
                                                 precision=1)[-11:],
                                 mag.rjust(4), mpc_code)])
         
@@ -1489,7 +1485,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file, software_folder):
     
     LOG.info("MPC-formatted file saved to %s.", mpcformat_file)
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='convert_fits2mpc')
+        log_timing_memory(t_func, label="convert_fits2mpc")
     
     return mpc_code, dummy
 
@@ -1523,7 +1519,7 @@ def run_astcheck(mpcformat_file, rundir, output_file,
         Matching radius in arcsec. The default value is the one specified in
         the settings file [set_match2SSO.py].
     """
-    mem_use(label='at start of run_astcheck')
+    mem_use(label="at start of run_astcheck")
     LOG.info("Running astcheck: matching detections to known solar system "
              "bodies.")
     if TIME_FUNCTIONS:
@@ -1534,7 +1530,7 @@ def run_astcheck(mpcformat_file, rundir, output_file,
         return
     
     # Create a file for storing the output of the astcheck run
-    output_file_content = open(output_file, 'w')
+    output_file_content = open(output_file, "w")
     
     # Run astcheck from folder containing .sof-file
     subprocess.call(["astcheck", mpcformat_file, "-h",
@@ -1546,7 +1542,7 @@ def run_astcheck(mpcformat_file, rundir, output_file,
     
     LOG.info("Matches saved to %s.", output_file)
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='run_astcheck')
+        log_timing_memory(t_func, label="run_astcheck")
     
     return
 
@@ -1582,7 +1578,7 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat,
         and AB magnitudes is ignored here. This number is therefore a rough
         prediction for the number of detections.
     """
-    mem_use(label='at start of create_sso_catalogue')
+    mem_use(label="at start of create_sso_catalogue")
     LOG.info("Converting astcheck output into an SSO catalogue.")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1599,7 +1595,7 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat,
                                        True)
         write2fits(Table(), None, [], sso_cat, start_header=sso_header)
         if TIME_FUNCTIONS:
-            log_timing_memory(t_func, label='create_sso_catalogue')
+            log_timing_memory(t_func, label="create_sso_catalogue")
         return
     
     # Remove astcheck header and footer if needed
@@ -1640,7 +1636,7 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat,
         
         # Name of the source in the MPC-formatted input file (transient number)
         transient_number = astcheck_file_content[minimal_index:maximal_index][
-            0].split(':')[0].split()
+            0].split(":")[0].split()
         # Lines corresponding to matches in the astcheck output file
         matches = astcheck_file_content[minimal_index:maximal_index][1:]
         
@@ -1658,7 +1654,7 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat,
         
         # Get properties of matches
         for i_match in range(len(matches)):
-            match_properties = re.split(' +', matches[i_match])
+            match_properties = re.split(" +", matches[i_match])
             match_properties = [x for x in match_properties if len(x) > 0]
             identifier = match_properties[0]
             try:
@@ -1676,16 +1672,16 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat,
                 magnitude = None
         
             # Add match to output table
-            output_row = [transient_number, str(identifier), float(offset_ra),
-                          float(offset_dec), float(offset), magnitude, initial_flag]
+            output_row = (transient_number, str(identifier), float(offset_ra),
+                          float(offset_dec), float(offset), magnitude, initial_flag)
             output_table.add_row(output_row)
     
     # If a solar system object was matched to multiple transient sources in the
     # image, assign it a flag of 2
-    unique_objects = np.unique(output_table['ID_SSO'])
+    unique_objects = np.unique(output_table["ID_SSO"])
     if len(unique_objects) != len(output_table):
         for obj in unique_objects:
-            obj_indices = np.where(output_table['ID_SSO'] == obj)[0]
+            obj_indices = np.where(output_table["ID_SSO"] == obj)[0]
             if len(obj_indices) > 1:
                 output_table["FLAGS_SSO"][obj_indices] += 2
     
@@ -1702,7 +1698,7 @@ def create_sso_catalogue(astcheck_file, rundir, software_folder, sso_cat,
     
     LOG.info("Matches saved to SSO catalogue: %s", sso_cat)
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='create_sso_catalogue')
+        log_timing_memory(t_func, label="create_sso_catalogue")
     
     return
 
@@ -1736,7 +1732,7 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file,
     mpc_code: string
         MPC code corresponding to the telescope.
     """
-    mem_use(label='at start of create_submission_file')
+    mem_use(label="at start of create_submission_file")
     LOG.info("Creating MPC submission file.")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1765,7 +1761,7 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file,
     LOG.info("Making submission file %s.", submission_file)
     if os.path.exists(submission_file):
         LOG.warning("MPC submission file %s is overwritten.", submission_file)
-    submission_file_content = open(submission_file, 'w')
+    submission_file_content = open(submission_file, "w")
     
     # Write header to the submission file
     submission_file_content.write(create_submission_header(submission_file,
@@ -1777,8 +1773,8 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file,
     # over.
     detections_mpcformat = pd.read_fwf(mpcformat_file, widths=[14, 66],
                                        names=["char1to14", "char15to80"],
-                                       dtype={'char1to14':np.int32, 
-                                              'char15to80':str})
+                                       dtype={"char1to14":np.int32, 
+                                              "char15to80":str})
     
     # For each detection that was matched to a known solar system object,
     # get the packed designation of the matching object and write the detection
@@ -1829,7 +1825,7 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file,
     submission_file_content.close()
     LOG.info("MPC submission file saved to %s", submission_file)
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='create_submission_file')
+        log_timing_memory(t_func, label="create_submission_file")
     
     return
 
@@ -1853,7 +1849,7 @@ def create_submission_header(submission_file, mpc_code, comment=None):
         Comment to be added to the header in the COM line. By default, this is
         None, meaning that the COM line is not added to the header.
     """
-    mem_use(label='at start of create_submission_header')
+    mem_use(label="at start of create_submission_header")
     LOG.info("Creating header for submission file.")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1872,7 +1868,7 @@ def create_submission_header(submission_file, mpc_code, comment=None):
                   submission_file)
     
     # Add COM line to the header
-    com_line = ''
+    com_line = ""
     if comment is not None:
         if len(comment) > 76:
             LOG.warning("COM line is too long and therefore not used. "
@@ -1882,7 +1878,7 @@ def create_submission_header(submission_file, mpc_code, comment=None):
     
     LOG.info("Submission file header complete.")
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='create_submission_header')
+        log_timing_memory(t_func, label="create_submission_header")
     
     return "".join([firstline, DEFAULT_SUBMISSION_HEADER, ack_line, com_line])
 
@@ -1954,7 +1950,7 @@ def pack_provisional_designation_comet(full_designation, pack_year):
     # In case of a comet fragment, the last character of the packed designation
     # is the fragment letter. Otherwise, it is zero.
     fragment = "0"
-    if '-' in designation:
+    if "-" in designation:
         designation, fragment = designation.split("-")
         fragment = fragment.lower()
     year, remainder = designation.split(" ")
@@ -2079,9 +2075,9 @@ def wrapper_pack_provisional_designation(full_designation):
     # Remove space before or after designation
     full_designation = full_designation.strip()
     
-    # Their are four special survey designation forms (for surveys that were
-    # undertaken between 1960 and 1977)that should be packed differently
-    survey_strings = ["P-L", "T-1", "T-2", "T-3"]
+    # There are four special survey designation forms (for surveys that were
+    # undertaken between 1960 and 1977) that should be packed differently
+    survey_strings = ("P-L", "T-1", "T-2", "T-3")
     for survey_string in survey_strings:
         if (re.match(r"^[0-9]{4}\s[A-Z]", full_designation)
                 and full_designation.endswith(survey_string)):
@@ -2122,7 +2118,7 @@ def pack_permanent_designation(full_designation):
     full_designation: string
         Unpacked permanent designation assigned to the object by the MPC.
     """
-    fragment = ''
+    fragment = ""
     
     if not full_designation.isdigit():
         # Object is a comet
@@ -2130,7 +2126,7 @@ def pack_permanent_designation(full_designation):
             designation, fragment = full_designation.split("-")
         else:
             designation = full_designation
-            fragment = ''
+            fragment = ""
         packed_designation = designation.zfill(5)
         fragment = fragment.lower()
     
@@ -2157,7 +2153,7 @@ def pack_permanent_designation(full_designation):
     if len(packed_designation) != 5:
         LOG.error("Packed permanent designation is of incorrect length: '%s'",
                   packed_designation)
-        return None, ''
+        return None, ""
     
     return packed_designation, fragment
 
@@ -2177,7 +2173,7 @@ def check_input_parameters(mode, cat2process, date2process, list2process):
     all_good = True
     
     # General checks on the input parameters
-    param_list = [date2process, cat2process, list2process]
+    param_list = (date2process, cat2process, list2process)
     param_num_none = sum([isinstance(par, type(None)) for par in param_list])
     
     if  param_num_none < len(param_list)-1:
@@ -2193,7 +2189,7 @@ def check_input_parameters(mode, cat2process, date2process, list2process):
     if mode == "day":
         if cat2process is not None or list2process is not None:
             print("CRITICAL: the day mode cannot be combined with the "
-                  +"--catalog or --catlist arguments.")
+                  "--catalog or --catlist arguments.")
             all_good = False
     
     elif mode == "night":
@@ -2246,8 +2242,8 @@ def load_and_check_folders(tel):
     """
     Function loads the folders specified in the settings file and checks
     whether they end with a slash. In addition, checks on the existence of the
-    folders are performed. A list of the folder names is returned. The returned
-    list is empty if there was an issue.
+    folders are performed. A tuple of the folder names is returned. The returned
+    tuple is empty if there was an issue.
     
     Parameters:
     -----------
@@ -2272,11 +2268,11 @@ def load_and_check_folders(tel):
     # Check if critical folders exists. If not, return an empty list.
     if not os.path.isdir(input_folder):
         print("CRITICAL: input folder given in settings file doesn't exist")
-        return []
+        return ()
     
     if not os.path.isdir(software_folder):
         print("CRITICAL: software folder given in settings file doesn't exist")
-        return []
+        return ()
     
     # Create the other folders if they don't exist, except for the log folder
     # as that is taken care of in the setup_logfile function.
@@ -2285,8 +2281,8 @@ def load_and_check_folders(tel):
     if not os.path.isdir(submission_folder):
         os.makedirs(submission_folder)
     
-    folders = [input_folder, software_folder, database_folder, log_folder,
-               submission_folder]
+    folders = (input_folder, software_folder, database_folder, log_folder,
+               submission_folder)
     
     return folders
 
@@ -2301,7 +2297,7 @@ def check_settings():
     # Check that astcheck parameters are numbers
     if not isinstance(settingsFile.matchingRadius, (float, int)):
         print("CRITICAL: incorrectly specified matching radius in settings "
-              +"file. Must be float or integer.")
+              "file. Must be float or integer.")
         return False
     
     if not isinstance(settingsFile.limitingMagnitude, (float, int)):
@@ -2311,13 +2307,13 @@ def check_settings():
     
     if not isinstance(settingsFile.maximalNumberOfAsteroids, int):
         print("CRITICAL: incorrectly specified max. number of asteroids in "
-              +"settings file.")
+              "settings file.")
         return False
     
     if (not isinstance(settingsFile.maxUncertainty, int) and
             settingsFile.maxUncertainty is not None):
         print("CRITICAL: incorrectly specified max. uncertainty in settings "
-              +"file. Must be 0-9 or None.")
+              "file. Must be 0-9 or None.")
         return False
     
     # Check if JPL ephemeris file exists
@@ -2361,9 +2357,9 @@ def setup_logfile(logname, log_folder):
         print("Log file already exists. Creating a new log named {}"
               .format(log_file))
     
-    file_handler = logging.FileHandler(log_file, 'a')
+    file_handler = logging.FileHandler(log_file, "a")
     file_handler.setFormatter(LOG_FORMATTER)
-    file_handler.setLevel('INFO')
+    file_handler.setLevel("INFO")
     LOG.addHandler(file_handler)
     
     return
@@ -2387,7 +2383,7 @@ def get_par(par, tel):
             par_val = par[tel]
         else:
             # cut off digits from [tel]
-            tel_base = ''.join([char for char in tel if char.isalpha()])
+            tel_base = "".join([char for char in tel if char.isalpha()])
             if tel_base in par:
                 par_val = par[tel_base]
     
@@ -2398,14 +2394,14 @@ def get_par(par, tel):
 
 
 # ZOGY function
-def mem_use(label=''):
+def mem_use(label=""):
     
     """Function keeps track of the memory usage."""
     
     # ru_maxrss is in units of kilobytes on Linux; however, this seems
     # to be OS dependent as on mac os it is in units of bytes; see
     # manpages of "getrusage"
-    if sys.platform == 'darwin':
+    if sys.platform == "darwin":
         norm = 1024**3
     else:
         norm = 1024**2
@@ -2414,7 +2410,7 @@ def mem_use(label=''):
     mem_now = psutil.Process().memory_info().rss / 1024**3
     mem_virt = psutil.Process().memory_info().vms / 1024**3
     
-    LOG.info('memory use [GB]: rss=%.3f, maxrss=%.3f, vms=%.3f in %s', mem_now,
+    LOG.info("memory use [GB]: rss=%.3f, maxrss=%.3f, vms=%.3f in %s", mem_now,
              mem_max, mem_virt, label)
     
     return
@@ -2424,11 +2420,11 @@ def mem_use(label=''):
 
 
 # ZOGY function
-def log_timing_memory(t_in, label=''):
+def log_timing_memory(t_in, label=""):
     
     """Function to report the time spent in a function."""
     
-    LOG.info('wall-time spent in %s: %.3f s', label, time.time()-t_in)
+    LOG.info("wall-time spent in %s: %.3f s", label, time.time()-t_in)
     mem_use(label=label)
     
     return
@@ -2465,7 +2461,7 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
         Boolean indicating whether red-flagged (dummy) catalogues should be
         excluded or not.
     """
-    mem_use(label='at start of get_transient_filenames')
+    mem_use(label="at start of get_transient_filenames")
     LOG.info("Selecting transient catalogues between %s and %s.",
              minimal_date.strftime("%Y-%m-%d %H:%M:%S"),
              maximal_date.strftime("%Y-%m-%d %H:%M:%S"))
@@ -2520,7 +2516,7 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
     LOG.info("%i transient catalogues have been selected.",
              len(files2process))
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label='get_transient_filenames')
+        log_timing_memory(t_func, label="get_transient_filenames")
     return files2process
 
 
@@ -2555,7 +2551,7 @@ def get_night_start_from_date(cat_name, tel, noon_type="local"):
         hdr = hdu[1].header
     
     observation_time = pytz.utc.localize(Time(hdr[DATE_KEYWORD],
-                                              format='isot').datetime)
+                                              format="isot").datetime)
     observation_date = str(observation_time.date())
     
     if noon_type == "local":
@@ -2750,7 +2746,7 @@ def write2fits(data, header, header_keys, output_file, start_header=None):
         Header which will be included in the header of the output catalogue.
         start_header can be None.
     """
-    mem_use(label='at start of write2fits')
+    mem_use(label="at start of write2fits")
     
     # Format fits table data
     columns = []
@@ -2761,7 +2757,7 @@ def write2fits(data, header, header_keys, output_file, start_header=None):
         # Converting bytestring format to fits format does not work properly
         # for strings, as the length is not taken into account properly.
         # Manually correct this.
-        if 'S' in column_format.str:
+        if "S" in column_format.str:
             string_length = column_format.str.split("S")[-1]
             column_format = "{}A".format(string_length)
         
@@ -2786,7 +2782,7 @@ def write2fits(data, header, header_keys, output_file, start_header=None):
     fitstable = fits.BinTableHDU.from_columns(columns, header=header)
     fitstable.writeto(output_file, overwrite=True)
     
-    mem_use(label='at end of write2fits')
+    mem_use(label="at end of write2fits")
     return
 
 
@@ -2802,11 +2798,11 @@ def remove_tmp_folder(tmp_path):
     
     if os.path.isdir(tmp_path):
         shutil.rmtree(tmp_path)
-        LOG.info('Removing temporary folder: %s', tmp_path)
+        LOG.info("Removing temporary folder: %s", tmp_path)
     else:
-        LOG.warning('tmp folder %s does not exist', tmp_path)
+        LOG.warning("tmp folder %s does not exist", tmp_path)
     
-    mem_use(label='after removing temporary folder')
+    mem_use(label="after removing temporary folder")
     return
 
 
@@ -2834,12 +2830,12 @@ if __name__ == "__main__":
     
     PARSER.add_argument("--date", type=str, default=None,
                         help="Date to process (yyyymmdd, yyyy-mm-dd, yyyy/mm/d"
-                        "d or yyyy.mm.dd). Mode is required to be 'historic'; "
+                        "d or yyyy.mm.dd). Mode must be 'historic' or 'day'; "
                         "default=None")
     
     PARSER.add_argument("--catlist", type=str, default=None,
                         help="Process all transient catalogs in the input list"
-                        ". List entries require full path. Mode  must be "
+                        ". List entries require full path. Mode must be "
                         "'historic'; default=None")
     
     PARSER.add_argument("--logname", type=str, default=None,
