@@ -41,7 +41,7 @@
 
 __version__ = "1.1.0"
 __author__ = "Danielle Pieterse"
-KEYWORDS_VERSION = "1.1.0"
+KEYWORDS_VERSION = "1.1.1"
 
 
 # In[ ]:
@@ -150,47 +150,6 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
       * Historic mode + date2process
       * Historic mode + list2process
     
-    Day mode:
-    Create known objects database & CHK files for the upcoming night, or - in
-    case date2process is specified - for the specified night.
-      0) Creates a run directory in preparation of the nightly processing
-      1) Downloads asteroid and comet databases to the database folder.
-      2) Integrates the asteroid database to midnight of the observation night
-      3) Combines the comet and integrated asteroid databases into a SOF-
-         formatted known objects database.
-      4) Creates symbolic links to the used databases and the observatory codes
-         list in the run directory.
-      5) Runs astcheck on a fake detection in order to create the CHK files
-         that astcheck will need for faster processing when running on
-         observations.
-      6) Removes the fake detection in- & output, excluding the CHK files!
-    Products of steps 1-2 are saved to the database folder, those of steps 3-5
-    to the run directory.
-    
-    Night mode:
-    Run match2SSO on a single transient catalogue. The day mode should have
-    been run once before the night mode. This allows the night mode to run in
-    parallel on multiple transient catalogues of the same night, as steps that
-    cannot be parallelised (making known objects database and CHK files) have
-    already been executed in the day mode. The night mode:
-      1) Converts the transient catalogue into an MPC-formatted text file.
-      2) Runs astcheck on that file, to find matches between the transient
-         detections and known solar system objects.
-      3) Makes an SSO catalogue containing the matches.
-      4) Makes an MPC submission file of the matches.
-    
-    Historic mode:
-    The historic mode does the entire processing - executing steps 0-3 & 5 of
-    the day mode, followed by all steps of the night mode. It can be run on a
-    single transient catalogue, an entire night of observations or a list of
-    observations (possibly spanning multiple nights). For the first catalogue
-    that is processed of each observation night, a new known objects catalogue
-    is created that is integrated to the observation midnight. The asteroid and
-    comet databases used for this are only downloaded once per historic mode
-    run (and only if REDOWNLOAD_DATABASES is True). For the remaining files (or
-    if REDOWNLOAD_DATABASES is False), the most recently downloaded versions
-    are used.
-    
     Parameters:
     -----------
     tel: string
@@ -217,8 +176,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     
     # Format input parameters
     mode = mode.lower()
-    local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, tel))
-    if date2process is not None:
+    if date2process:
         date2process = date2process.replace(".", "").replace(
             "/", "").replace("-", "")
     
@@ -240,185 +198,329 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     mem_use(label="at start of run_match2SSO")
     
     # Get local noon corresponding to the night start in case date2process or
-    # cat2process are specified. night_start is a datetime object (incl.
-    # timezone information).
-    if cat2process is not None:
+    # cat2process are specified.
+    night_start = None
+    local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, tel))
+    if cat2process:
         night_start = get_night_start_from_date(cat2process, tel)
-    
-    elif date2process is not None:
+    elif date2process:
         night_start = local_timezone.localize(datetime.strptime(" ".join([
             date2process, "120000"]), "%Y%m%d %H%M%S"))
     
-    
+    # Run match2SSO
     if mode == "day":
-        LOG.info("Running the day mode.")
+        day_mode(night_start, tel, database_folder, software_folder)
         
-        # If no observation night is specified, use the upcoming local night
-        if date2process is None:
-            night_start = (datetime.now(local_timezone)).strftime(
-                "%Y%m%d 120000")
-            # Add timezone info to datetime object
-            night_start = local_timezone.localize(datetime.strptime(
-                night_start, "%Y%m%d %H%M%S"))
-        
-        # Delete the temporary products made in the night mode of the previous
-        # night.
-        if not KEEP_TMP:
-            night_previous = (night_start - timedelta(days=1)
-                             ).strftime("%Y%m%d")
-            rundir_previous = "{}{}/".format(database_folder, night_previous)
-            
-            if os.path.exists("{}MPCORB.DAT".format(rundir_previous)):
-                asteroid_database = os.readlink("{}MPCORB.DAT"
-                                                .format(rundir_previous))
-                if "epoch" in asteroid_database:
-                    os.remove(asteroid_database)
-                    LOG.info("Removed %s", asteroid_database)
-            remove_tmp_folder(rundir_previous)
-        
-        # Create a run directory corresponding to the observation night
-        rundir = ("{}{}/".format(database_folder,
-                                 night_start.strftime("%Y%m%d")))
-        LOG.info("Run directory: %s", rundir)
-        if not os.path.isdir(rundir):
-            os.makedirs(rundir)
-        
-        # Create symbolic link to the observatory codes list
-        if not os.path.exists("{}ObsCodes.html".format(rundir)):
-            LOG.info("Creating symbolic link to ObsCodes.html")
-            os.symlink("{}ObsCodes.html".format(software_folder),
-                       "{}ObsCodes.html".format(rundir))
-        
-        # Download and integrate known object databases
-        midnight = night_start + timedelta(days=0.5)
-        create_known_objects_database(midnight, rundir, database_folder,
-                                      REDOWNLOAD_DATABASES)
-        
-        # Create CHK files that astcheck needs in advance, to allow
-        # parallelisation in the night mode
-        create_chk_files(night_start, "night_start", rundir)
-        create_chk_files(night_start + timedelta(days=1), "night_end", rundir)
-        
-        # Check for known object database products
-        if not find_database_products(rundir):
-            log_timing_memory(t_glob, label="run_match2SSO")
-            logging.shutdown()
-            return
-        
-        LOG.info("Day mode finished.")
-    
-    
     elif mode == "night":
-        
-        LOG.info("Running the night mode on transient catalogue: \n%s",
-                 cat2process)
-        rundir = "{}{}/".format(database_folder,
-                                night_start.strftime("%Y%m%d"))
-        LOG.info("Run directory: %s", rundir)
-        
-        # Check for known object database products. Stop processing if it 
-        # doesn't exist.
-        if not find_database_products(rundir):
-            logging.shutdown()
-            return
-        
-        # Check for CHK files
-        night_start_utc = get_night_start_from_date(cat2process, tel, "utc")
-        night_end_utc = night_start_utc + timedelta(days=1)
-        night_start_utc = night_start_utc.strftime("%Y%m%d")
-        night_end_utc = night_end_utc.strftime("%Y%m%d")
-        if not os.path.exists("{}{}.chk".format(rundir, night_start_utc)):
-            LOG.critical("Missing %s.chk!", night_start_utc)
-            logging.shutdown()
-            return
-        if not os.path.exists("{}{}.chk".format(rundir, night_end_utc)):
-            LOG.critical("Missing %s.chk!", night_end_utc)
-            logging.shutdown()
-            return
-        del night_start_utc
-        del night_end_utc
-        
-        # Check for observatory codes list. Stop processing if it doesn't exist
-        if not os.path.exists("{}ObsCodes.html".format(rundir)):
-            LOG.critical("%sObsCodes.html doesn't exist.", rundir)
-            logging.shutdown()
-            return
-        
-        _ = match_single_catalogue(cat2process, rundir, software_folder,
-                                   database_folder, submission_folder,
-                                   night_start, make_kod=False,
-                                   redownload_db=False)
-        
-        # Beware that the run directory created for the processing of the
-        # catalogue is not removed. This is the case because a single parallel
-        # process does not know about the rest. A cleaning function can be run
-        # in the day mode.
+        night_mode(cat2process, night_start, tel, database_folder,
+                   software_folder, submission_folder)
     
-    
-    elif mode == "historic":
-        
-        if cat2process is not None:
-            LOG.info("Running historic mode on transient catalogue: \n%s",
-                     cat2process)
-            match_catalogues_single_night(
-                [cat2process], night_start, REDOWNLOAD_DATABASES,
-                software_folder, database_folder, submission_folder)
-        
-        elif date2process is not None:
-            LOG.info("Running historic mode on night %s", date2process)
-            catalogues2process = get_transient_filenames(
-                input_folder, night_start, night_start+timedelta(days=1), tel)
-            if not catalogues2process:
-                LOG.critical("No light transient catalogues exist for night "
-                             "%s", date2process)
-                log_timing_memory(t_glob, label="run_match2SSO")
-                logging.shutdown()
-                return
-            
-            match_catalogues_single_night(
-                catalogues2process, night_start, REDOWNLOAD_DATABASES,
-                software_folder, database_folder, submission_folder)
-        
-        elif list2process is not None:
-            LOG.info("Running historic mode on catalogue list: \n%s",
-                     list2process)
-            with open(list2process, "r") as catalogue_list:
-                catalogues2process = [name.strip() for name in catalogue_list                                       if name[0] != "#"]
-            
-            # Order by observation date (noon that equals the start of the
-            # observation day)
-            noons = [get_night_start_from_date(cat_name, tel).strftime(
-                "%Y%m%d %H%M%S") for cat_name in catalogues2process]
-            
-            # Process files per night
-            LOG.info("Catalogue list spans %i nights", len(np.unique(noons)))
-            first_night = True
-            for noon in np.unique(noons):
-                LOG.info("Processing night that starts at %s", noon)
-                night_index = np.where(np.array(noons) == noon)[0]
-                catalogues2process_1night = np.array(
-                    catalogues2process)[night_index]
-                
-                # Use the same version of the asteroid and comet databases for
-                # all data to be processed. If REDOWNLOAD_DATABASES, this
-                # version corresponds to the time of processing the first image
-                # from the list. If REDOWNLOAD_DATABASES is False, the latest
-                # existing downloaded version of the databases is used.
-                noon = local_timezone.localize(datetime.strptime(
-                    noon, "%Y%m%d %H%M%S"))
-                if first_night:
-                    match_catalogues_single_night(
-                        catalogues2process_1night, noon, REDOWNLOAD_DATABASES,
-                        software_folder, database_folder, submission_folder)
-                else:
-                    match_catalogues_single_night(
-                        catalogues2process_1night, noon, False,
-                        software_folder, database_folder, submission_folder)
-                first_night = False
+    elif mode == "historic" or "hist":
+        hist_mode(cat2process, date2process, list2process, night_start, tel,
+                  input_folder, database_folder, software_folder,
+                  submission_folder)
     
     LOG.info("Finished running match2SSO.")
     log_timing_memory(t_glob, label="run_match2SSO")
     logging.shutdown()
+    
+    return
+
+
+# In[ ]:
+
+
+def day_mode(night_start, tel, database_folder, software_folder):
+    
+    """
+    Run match2SSO in day mode to prepare for the night mode. The day mode
+    creates the known objects database & CHK files for the upcoming night, or
+    - in case [date] is specified - for the specified night.
+      0) Creates a run directory in preparation of the nightly processing.
+      1) Downloads asteroid and comet databases to the database folder.
+      2) Integrates the asteroid database to midnight of the observation night.
+      3) Combines the comet and integrated asteroid databases into a SOF-
+         formatted known objects database.
+      4) Creates symbolic links to the used databases and the observatory codes
+         list in the run directory.
+      5) Runs astcheck on a fake detection in order to create the CHK files
+         that astcheck will need for faster processing when running on
+         observations.
+      6) Removes the fake detection in- & output, excluding the CHK files.
+    Products of steps 1-2 are saved to the database folder, those of steps 3-5
+    to the run directory.
+    
+    Parameters:
+    -----------
+    night_start: datetime object (incl timezone) or None
+        Noon corresponding to the start of the observation night.
+    tel: string
+        Abbreviated telescope name. Can be either ML1, BG2, BG3 or BG4.
+    database_folder: string
+        Name of the folder where the known objects databases will be downloaded
+        to and in which the run directory will be placed.
+    software_folder: string
+        Name of the folder in which the MPC observatory codes list
+        (Obscodes.html) is stored.
+    """
+    
+    LOG.info("Running the day mode.")
+    
+    # Use the upcoming local night if no observation night is specified
+    if not night_start:
+        local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, tel))
+        night_start = (datetime.now(local_timezone)).strftime("%Y%m%d 120000")
+        night_start = local_timezone.localize(datetime.strptime(
+            night_start, "%Y%m%d %H%M%S"))
+    
+    # Delete the temporary products made in the night mode of the previous
+    # night.
+    if not KEEP_TMP:
+        night_previous = (night_start - timedelta(days=1)).strftime("%Y%m%d")
+        rundir_previous = "{}{}/".format(database_folder, night_previous)
+        
+        if os.path.exists("{}MPCORB.DAT".format(rundir_previous)):
+            asteroid_database = os.readlink("{}MPCORB.DAT"
+                                            .format(rundir_previous))
+            if "epoch" in asteroid_database:
+                os.remove(asteroid_database)
+                LOG.info("Removed %s", asteroid_database)
+        remove_tmp_folder(rundir_previous)
+    
+    # Create a run directory corresponding to the observation night
+    rundir = ("{}{}/".format(database_folder, night_start.strftime("%Y%m%d")))
+    LOG.info("Run directory: %s", rundir)
+    if not os.path.isdir(rundir):
+        os.makedirs(rundir)
+    
+    # Create symbolic link to the observatory codes list
+    if not os.path.exists("{}ObsCodes.html".format(rundir)):
+        LOG.info("Creating symbolic link to ObsCodes.html")
+        os.symlink("{}ObsCodes.html".format(software_folder),
+                   "{}ObsCodes.html".format(rundir))
+    
+    # Download and integrate known object databases
+    midnight = night_start + timedelta(days=0.5)
+    create_known_objects_database(midnight, rundir, database_folder,
+                                  REDOWNLOAD_DATABASES)
+    
+    # Create CHK files that astcheck needs in advance, to allow parallelisation
+    # in the night mode
+    create_chk_files(night_start, "night_start", rundir)
+    create_chk_files(night_start + timedelta(days=1), "night_end", rundir)
+    
+    # Check for known object database products
+    if not find_database_products(rundir):
+        LOG.error("No database products found...")
+        return
+        
+    LOG.info("Day mode finished.")
+    
+    return
+
+
+# In[ ]:
+
+
+def night_mode(cat_name, night_start, tel, database_folder, software_folder,
+               submission_folder):
+    """
+    Run match2SSO on a single transient catalogue. The day mode should have been
+    run once before the night mode. This allows the night mode to run in
+    parallel on multiple transient catalogues of the same night, as steps that
+    cannot be parallelised (making known objects database and CHK files) have
+    already been executed in the day mode. The night mode:
+      1) Converts the transient catalogue into an MPC-formatted text file.
+      2) Runs astcheck on that file, to find matches between the transient
+         detections and known solar system objects.
+      3) Makes an SSO catalogue containing the matches.
+      4) Makes an MPC submission file of the matches.
+    Running the night mode in parallel on multiple catalogues can be done by
+    calling match2SSO (with --mode night) multiple times in parallel.
+    
+    Parameters:
+    -----------
+    cat_name: string
+        Path to and name of the transient catalogue that is to be processed.
+    night_start: datetime object (with timezone)
+        Noon corresponding to the start of the observation night.
+    tel: string
+        Abbreviated telescope name. Can be either ML1, BG2, BG3 or BG4.
+    database_folder: string
+        Name of the folder that contains the known objects databases and the run
+        directory.
+    software_folder: string
+        Name of the folder in which the MPC observatory codes list
+        (Obscodes.html) is stored.
+    submission_folder: string
+        Name of the folder in which the MPC submission files will be stored.
+    """
+    
+    LOG.info("Running the night mode on transient catalogue: \n%s", cat_name)
+    
+    # Get name of run directory
+    rundir = "{}{}/".format(database_folder, night_start.strftime("%Y%m%d"))
+    LOG.info("Run directory: %s", rundir)
+    
+    # Check for known object database products. Stop processing if it doesn't
+    # exist.
+    if not find_database_products(rundir):
+        logging.shutdown()
+        return
+    
+    # Check for CHK files
+    night_start_utc = get_night_start_from_date(cat_name, tel, "utc")
+    night_end_utc = night_start_utc + timedelta(days=1)
+    night_start_utc = night_start_utc.strftime("%Y%m%d")
+    night_end_utc = night_end_utc.strftime("%Y%m%d")
+    if not os.path.exists("{}{}.chk".format(rundir, night_start_utc)):
+        LOG.critical("Missing %s.chk!", night_start_utc)
+        logging.shutdown()
+        return
+    if not os.path.exists("{}{}.chk".format(rundir, night_end_utc)):
+        LOG.critical("Missing %s.chk!", night_end_utc)
+        logging.shutdown()
+        return
+    del night_start_utc
+    del night_end_utc
+    
+    # Check for observatory codes list. Stop processing if it doesn't exist
+    if not os.path.exists("{}ObsCodes.html".format(rundir)):
+        LOG.critical("%sObsCodes.html doesn't exist.", rundir)
+        logging.shutdown()
+        return
+    
+    _ = match_single_catalogue(cat_name, rundir, software_folder,
+                               database_folder, submission_folder, night_start,
+                               make_kod=False, redownload_db=False)
+    
+    # Beware that the run directory created for the processing of the
+    # catalogue is not removed. This is the case because a single parallel
+    # process does not know about the rest. A cleaning function can be run
+    # in the day mode.
+    
+    return
+
+
+# In[ ]:
+
+
+def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
+              database_folder, software_folder, submission_folder):
+    
+    """
+    The historic mode does the entire processing of match2SSO, including the
+    preparation of the known objects databases. The historic mode can be run on
+    a single transient catalogue, an entire night of observations or a list of
+    transient catalogues (possibly spanning multiple nights).
+    
+    For the first catalogue that is processed of each observation night, the
+    code:
+      0) Creates a run directory in preparation of the processing.
+      1) Downloads asteroid and comet databases to the database folder.
+      2) Integrates the asteroid database to midnight of the observation night.
+      3) Combines the comet and integrated asteroid databases into a SOF-
+         formatted known objects database.
+      4) Creates symbolic links to the used databases and the observatory codes
+         list in the run directory.
+    The asteroid and comet databases used for this are only downloaded once per
+    historic mode run (and only if REDOWNLOAD_DATABASES is True). For the
+    remaining files (or if REDOWNLOAD_DATABASES is False), the most recently
+    downloaded versions are used.
+    
+    For all transient catalogues, the code then:
+      5) Converts the transient catalogue into an MPC-formatted text file.
+      6) Runs astcheck on that file, to find matches between the transient
+         detections and known solar system objects.
+      7) Makes an SSO catalogue containing the matches.
+      8) Makes an MPC submission file of the matches.
+    
+    The historic mode can only be parallelised if there is no overlap in 
+    observing nights.
+    
+    Parameters:
+    -----------
+    cat_name: string or None
+        Path to and name of the transient catalogue that is to be processed.
+    date: string or None
+        Date for which the known objects database needs to be prepared.
+        Formatted as yyyymmdd.
+    catlist: string or None
+        Path to and name of the text file that contains the paths to and names
+        of transient catalogues (one per line) that need to be processed.
+    night_start: datetime object (with timezone) or None
+        Noon corresponding to the start of the observation night.
+    tel: string
+        Abbreviated telescope name. Can be either ML1, BG2, BG3 or BG4.
+    input_folder: string
+        Folder which contains the yyyy/mm/dd/ folders in which the transient
+        catalogues are stored.
+    database_folder: string
+        Name of the folder that contains the known objects databases and the run
+        directory.
+    software_folder: string
+        Name of the folder in which the MPC observatory codes list
+        (Obscodes.html) is stored.
+    submission_folder: string
+        Name of the folder in which the MPC submission files will be stored.
+    
+    Beware that exactly two of the variables (cat_name, date, catlist) need to
+    be None!
+    """
+    
+    if catlist:
+        LOG.info("Running historic mode on catalogue list: \n%s", catlist)
+        
+        # Open catalogue list
+        with open(catlist, "r") as catalogue_list:
+            catalogues2process = [name.strip() for name in catalogue_list                                   if name[0] != "#"]
+        
+        # Order by observation date (noon that equals the start of the
+        # observation day)
+        noons = [get_night_start_from_date(catname, tel).strftime(
+            "%Y%m%d %H%M%S") for catname in catalogues2process]
+        
+        # Process files per night
+        LOG.info("Catalogue list spans %i nights", len(np.unique(noons)))
+        first_night = True
+        for noon in np.unique(noons):
+            LOG.info("Processing night that starts at %s", noon)
+            night_index = np.where(np.array(noons) == noon)[0]
+            catalogues2process_1night = np.array(
+                catalogues2process)[night_index]
+            
+            local_timezone = timezone(get_par(settingsFile.timeZoneTelescope,
+                                              tel))
+            noon = local_timezone.localize(datetime.strptime(noon,
+                                                             "%Y%m%d %H%M%S"))
+            if first_night:
+                match_catalogues_single_night(
+                    catalogues2process_1night, noon, REDOWNLOAD_DATABASES,
+                    software_folder, database_folder, submission_folder)
+            else:
+                match_catalogues_single_night(
+                    catalogues2process_1night, noon, False, software_folder,
+                    database_folder, submission_folder)
+            first_night = False
+        return
+    
+    if cat_name:
+        LOG.info("Running historic mode on transient catalogue: \n%s", cat_name)
+        catalogues2process = (cat_name)
+    
+    elif date:
+        LOG.info("Running historic mode on night %s", date)
+        catalogues2process = get_transient_filenames(
+            input_folder, night_start, night_start+timedelta(days=1), tel)
+        
+        if not catalogues2process:
+            LOG.critical("No light transient catalogues exist for night %s",
+                         date)
+            return
+    
+    match_catalogues_single_night(
+            catalogues2process, night_start, REDOWNLOAD_DATABASES,
+            software_folder, database_folder, submission_folder)
     
     return
 
@@ -2181,7 +2283,7 @@ def check_input_parameters(mode, cat2process, date2process, list2process):
               "combination is not allowed.")
         all_good = False
     
-    if mode not in ["day", "night", "historic"]:
+    if mode not in ["day", "night", "historic", "hist"]:
         print("CRITICAL: unknown mode.")
         all_good = False
     
@@ -2202,7 +2304,7 @@ def check_input_parameters(mode, cat2process, date2process, list2process):
                   "--date or --catlist arguments.")
             all_good = False
     
-    elif mode == "historic" and param_num_none == len(param_list):
+    elif (mode == "historic" or "hist") and param_num_none == len(param_list):
         print("CRITICAL: --date, --catalog and --catlist are all None. Nothing"
               " to process.")
         all_good = False
