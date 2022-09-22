@@ -1396,10 +1396,10 @@ def create_sso_header(rundir, software_folder, N_det, N_sso, dummy,
     # Get the versions of the lunar & jpl_eph repositories. The versions are
     # given by unique strings signifying the latest commit that was made to the
     # repositories. Save the strings to the SSO header.
-    lunar_version = retrieve_version("lunar", software_folder)
+    lunar_version = retrieve_version("lunar")
     header["LUNAR-V"] = (lunar_version, "lunar repository version used")
     
-    jpl_eph_version = retrieve_version("jpl_eph", software_folder)
+    jpl_eph_version = retrieve_version("jpl_eph")
     header["JPLEPH-V"] = (jpl_eph_version, "jpl_eph repository version used")
     
     # Add version of JPL lunar & planetary ephemerides file to SSO header
@@ -2792,24 +2792,22 @@ def remove_astcheck_header_and_footer(astcheck_file_content):
 # In[ ]:
 
 
-def retrieve_version(package_name, software_folder):
+def retrieve_version(package_name):
     
     """
     Function retrieves the string corresponding to the version of the software
-    package, from a versions.txt file in the software folder. In this file, each
-    line should correspond to a different package and should contain the package
-    name and the version string, separated by a space.
+    package, from the versions.txt file listed in the settings file. In the
+    versions file, each line should correspond to a different package and should
+    contain the package name and the version string, separated by a space.
     
     Parameters:
     -----------
     package_name: string
         Name of the software package, as listed in versions.txt
-    software_folder: string
-        Name of the software folder that contains the versions.txt file.
     """
     
     try:
-        versions_file = open("{}versions.txt".format(software_folder))
+        versions_file = open(settingsFile.versionsFile)
         for line in versions_file:
             if package_name in line:
                 line = line.replace("\n","")

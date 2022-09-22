@@ -7,6 +7,13 @@ databaseFolder = "/idia/projects/meerlicht/ML1/tmp/match2SSO/"
 logFolder = "/idia/projects/meerlicht/ML1/log/match2SSO/"
 submissionFolder = "/idia/projects/meerlicht/ML1/mpc/"
 
+
+#==============================================================================
+#Text file listing the software versions used
+#==============================================================================
+versionsFile = "/Software/versions.txt"
+
+
 #==============================================================================
 #Astcheck parameters
 #==============================================================================
