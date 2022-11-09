@@ -1,12 +1,19 @@
+import os
+
 #==============================================================================
 #Directory structure
 #==============================================================================
-inputFolder = "/idia/projects/meerlicht/ML1/red/"
-softwareFolder = "/Software/match2SSO/"
-databaseFolder = "/idia/projects/meerlicht/ML1/tmp/match2SSO/"
-logFolder = "/idia/projects/meerlicht/ML1/log/match2SSO/"
-submissionFolder = "/idia/projects/meerlicht/ML1/mpc/"
+runFolderBase = os.environ['DATAHOME']
 
+runFolder = {}; inputFolder={}; databaseFolder={}; logFolder={}; submissionFolder={}
+for tel in ['ML1', 'BG2', 'BG3', 'BG4']:
+    runFolder[tel] = '{}/{}'.format(runFolderBase, tel)
+    inputFolder[tel] = '{}/red/'.format(runFolder[tel])
+    databaseFolder[tel] = '{}/tmp/match2SSO/'.format(runFolder[tel])
+    logFolder[tel] = '{}/log/match2SSO/'.format(runFolder[tel])
+    submissionFolder[tel] = '{}/mpc/'.format(runFolder[tel])
+
+softwareFolder = "/Software/match2SSO/"
 
 #==============================================================================
 #Text file listing the software versions used
