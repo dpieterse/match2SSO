@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.1.0"
 
@@ -98,31 +98,20 @@ LOG = logging.getLogger()
 
 # Set global constants
 
-# Relevant detection catalogue column names
-NUMBER_COLUMN = "NUMBER"  # Detection number, unique within the catalogue
-RA_COLUMN = "RA_PSF_D"   # RA in deg
-DEC_COLUMN = "DEC_PSF_D" # Dec in deg
-MAG_COLUMN = "MAG_ZOGY"
-SNR_COLUMN = "SNR_ZOGY" # Negative values correspond to negative transients
+# Relevant data columns
+NUMBER_COLUMN = settingsFile.colNumber
+RA_COLUMN = settingsFile.colRA
+DEC_COLUMN = settingsFile.colDec
+MAG_COLUMN = settingsFile.colMag
+SNR_COLUMN = settingsFile.colSNR
 
 # Relevant header keywords of detection catalogue
-DUMMY_KEYWORD = "TDUMCAT" # Boolean. If True, the catalogue is empty.
-DATE_KEYWORD = "DATE-OBS" # Observation date & time in isot format
-MPC_CODE_KEYWORD = "MPC-CODE" # MPC observatory code of telescope
-CENTRAL_RA_KEYWORD = "RA-CNTR" # Right ascension of the field center, in deg
-CENTRAL_DEC_KEYWORD = "DEC-CNTR" # Declination of the field center, in deg
-LIMMAG_KEYWORD = "T-LMAG" # Transient limiting magnitude
-
-# Default header for the MPC submission file
-DEFAULT_SUBMISSION_HEADER = "".join([
-    "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
-    "CON [p.groot@astro.ru.nl]\n",
-    "OBS P. J. Groot, S. L. D. Bloemen, L. Townsend\n",
-    "MEA P. M. Vreeswijk, D. L. A. Pieterse, K. Paterson\n",
-    "TEL 0.65-m reflector + CCD\n",
-    "NET Gaia-DR2\n",
-    "AC2 mpc-response@blackgem.org\n"
-    ])
+DUMMY_KEYWORD = settingsFile.keyDummy
+DATE_KEYWORD = settingsFile.keyDate
+MPC_CODE_KEYWORD = settingsFile.keyMPCcode
+CENTRAL_RA_KEYWORD = settingsFile.keyRACentre
+CENTRAL_DEC_KEYWORD = settingsFile.keyDecCentre
+LIMMAG_KEYWORD = settingsFile.keyLimmag
 
 # Load switches
 REDOWNLOAD_DATABASES = bool(settingsFile.redownload_databases)
@@ -130,6 +119,9 @@ INCLUDE_COMETS = bool(settingsFile.include_comets)
 KEEP_TMP = bool(settingsFile.keep_tmp)
 OVERWRITE_FILES = bool(settingsFile.overwrite_files)
 TIME_FUNCTIONS = bool(settingsFile.time_functions)
+
+# Load default MPC submission header
+DEFAULT_SUBMISSION_HEADER = settingsFile.submissionHeader
 
 
 # ## Main functions to run match2SSO

@@ -1,7 +1,7 @@
 import os
 
 #==============================================================================
-#Directory structure
+# Directory structure
 #==============================================================================
 runFolderBase = os.environ['DATAHOME']
 
@@ -15,62 +15,95 @@ for tel in ['ML1', 'BG2', 'BG3', 'BG4']:
 
 softwareFolder = "/Software/match2SSO/"
 
+
 #==============================================================================
-#Text file listing the software versions used
+# Text file listing the software versions used
 #==============================================================================
 versionsFile = "/Software/versions.txt"
 
 
 #==============================================================================
-#Astcheck parameters
+# Relevant data columns and header keywords from detection catalogue
+#==============================================================================
+colNumber = "NUMBER" # Source number, unique within the catalogue
+colRA = "RA_PSF_D"   # [deg]
+colDec = "DEC_PSF_D" # [deg]
+colMag = "MAG_ZOGY"
+colSNR = "SNR_ZOGY"  # Negative values are negative transients (to reject)
+
+keyDummy = "TDUMCAT"      # boolean (if True, the catalogue is empty)
+keyDate = "DATE-OBS"      # isot format
+keyMPCcode = "MPC-CODE"   # MPC observatory code
+keyRACentre = "RA-CNTR"   # RA of the field center, [deg]
+keyDecCentre = "DEC-CNTR" # Dec of the field center, [deg]
+keyLimmag = "T-LMAG"      # transient limiting magnitude
+
+
+#==============================================================================
+# Astcheck parameters
 #==============================================================================
 matchingRadius = 20 #matching radius in arcsec
 limitingMagnitude = 25 #limiting V-magnitude
 
-#Maximal number of asteroids that are returned as a match by astcheck. Set to a
-#value large enough so that it won't restrict the output.
+# Maximal number of asteroids that are returned as a match by astcheck. Set to a
+# value large enough so that it won't restrict the output.
 maximalNumberOfAsteroids = 1000
 
 
 #==============================================================================
-#Telescope parameters (see pytz.all_timezones within Python for possible time
-#zones).
+# Telescope parameters (see pytz.all_timezones within Python for possible time
+# zones)
 #==============================================================================
 timeZoneTelescope = {"ML": "Africa/Johannesburg", "BG": "America/Santiago"}
 FOV_width = 1.6544 # Size of the FOV in degrees
-#For a square FOV, the FOV_width corresponds to the width and height of the FOV.
-#For a circular FOV, the FOV_width is the diameter of the circle.
+# For a square FOV, the FOV_width corresponds to the width and height of the
+# FOV. For a circular FOV, the FOV_width is the diameter of the circle.
+
 
 #==============================================================================
-#Links to databases of known asteroids (MPC) and known comets (JPL)
+# Links to databases of known asteroids (MPC) and known comets (JPL)
 #==============================================================================
 URL_asteroidDatabase = "https://www.minorplanetcenter.net/iau/MPCORB/MPCORB.DAT"
 URL_cometDatabase = "https://ssd.jpl.nasa.gov/dat/ELEMENTS.COMET"
 
-#Maximal uncertainty parameter allowed for the asteroids that are used for the
-#matching (see https://www.minorplanetcenter.net/iau/info/UValue.html). Allowed
-#values for the maximum uncertainty parameter are 0 to 9 or None. If None, all 
-#objects will be taken into account, including those with letter uncertainties.
+# Maximal uncertainty parameter allowed for the asteroids that are used for the
+# matching (see https://www.minorplanetcenter.net/iau/info/UValue.html). Allowed
+# values for the maximum uncertainty parameter are 0 to 9 or None. If None, all 
+# objects will be taken into account, including those with letter uncertainties.
 maxUncertainty = 2
 
 
 #==============================================================================
-#JPL DE ephemeris file (describing planetary and lunar ephemerides) needed to
-#integrate MPCORB to the observation epoch
+# JPL DE ephemeris file (describing planetary and lunar ephemerides) needed to
+# integrate MPCORB to the observation epoch
 #==============================================================================
 JPL_ephemerisFile = "{}linux_m13000p17000.441".format(softwareFolder)
 
 
 #==============================================================================
-#Libraries
+# Libraries
 #==============================================================================
-#CPP library to convert from __cplusplus macro to the language version string
+# CPP library to convert from __cplusplus macro to the language version string
 CPPmacro2version = {"202002L":"C++20", "201703L":"C++17", "201402L":"C++14",
                     "201103L":"C++11", "199711L":"C++98"}
 
 
 #==============================================================================
-#Switches
+# Default header for the MPC submission file
+#==============================================================================
+submissionHeader = "".join([
+    "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
+    "CON [p.groot@astro.ru.nl]\n",
+    "OBS P. J. Groot, S. L. D. Bloemen, L. Townsend\n",
+    "MEA P. M. Vreeswijk, D. L. A. Pieterse, K. Paterson\n",
+    "TEL 0.65-m reflector + CCD\n",
+    "NET Gaia-DR2\n",
+    "AC2 mpc-response@blackgem.org\n"
+    ])
+
+
+#==============================================================================
+# Switches
 #==============================================================================
 redownload_databases = True
 include_comets = False
