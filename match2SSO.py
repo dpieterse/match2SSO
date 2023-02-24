@@ -1028,7 +1028,8 @@ def create_known_objects_database(midnight, rundir, database_folder,
                         integrated_asteroid_database,
                         str(Time(midnight_utc).jd),
                         "-f{}".format(settingsFile.JPL_ephemerisFile)],
-                       cwd=database_folder, check=True)
+                       cwd=database_folder, stdout=subprocess.DEVNULL,
+                       check=True)
         if TIME_FUNCTIONS:
             log_timing_memory(t_subtiming, label="integrat")
         
