@@ -58,7 +58,8 @@ Allowed combinations of the above-mentioned parameters are:
 ### Other command line parameters:
 - ```--telescope``` (Abbreviated) telescope name. Allows dictionaries in the settings file _set_match2SSO.py_ with different parameter values for different telescopes.
 - ```--logname``` Name of the log file
-
+- ```--redownload``` Boolean to indicate whether previously downloaded versions of the MPC asteroid database (and comet database) may be used, or whether a new version is to be downloaded.
+- ```--overwrite``` Boolean to indicate whether files may be overwritten
 
 ### Multi-processing
 Although multi-processing was not implemented within the code, efforts have been made to allow calling the code multiple times in parallel.
