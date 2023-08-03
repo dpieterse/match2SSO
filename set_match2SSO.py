@@ -4,21 +4,21 @@ import os
 # Directory structure
 #==============================================================================
 runFolderBase = {}; runFolder = {}; inputFolder={}; tmpFolder={}; logFolder={};
-submissionFolder={}
+MPCreportFolder={}
 for tel in ["ML1"]:
     runFolderBase[tel] = "/idia/projects/meerlicht"
     runFolder[tel] = "{}/{}".format(runFolderBase[tel], tel)
     inputFolder[tel] = "{}/red/".format(runFolder[tel])
     tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
     logFolder[tel] = "{}/log/match2SSO/".format(runFolder[tel])
-    submissionFolder[tel] = "{}/mpc/".format(runFolder[tel])
+    MPCreportFolder[tel] = "{}/mpc/".format(runFolder[tel])
 for tel in ["BG2", "BG3", "BG4"]:
     runFolderBase[tel] = "/home/sa_105685508700717199458"
     runFolder[tel] = "{}/Slurm/{}".format(runFolderBase[tel], tel)
     inputFolder[tel] = "gs://blackgem-red/{}/".format(tel)
     tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
     logFolder[tel] = None
-    submissionFolder[tel] = "{}/mpc/{}/".format(runFolderBase[tel], tel)
+    MPCreportFolder[tel] = "{}/mpc/{}/".format(runFolderBase[tel], tel)
 
 
 #==============================================================================
@@ -103,9 +103,9 @@ CPPmacro2version = {"202002L":"C++20", "201703L":"C++17", "201402L":"C++14",
 
 
 #==============================================================================
-# Header for the MPC submission file (listed per MPC observatory code)
+# Header for the MPC report (listed per MPC observatory code)
 #==============================================================================
-submissionHeader = {
+MPCreportHeader = {
     "L66": "".join([
         "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
         "CON [p.groot@astro.ru.nl]\n",

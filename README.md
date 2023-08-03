@@ -28,7 +28,7 @@ In addition, _match2SSO_ uses MPCORB.DAT (MPC's asteroid database) and COMET.ELE
 #### Output
 - Solar Sytem Object (SSO) catalogue containing the matches between detections and known solar system objects (__sso.fits_). SSO catalogue columns and header keywords are listed here: https://www.overleaf.com/read/zrhqwcbkfqns
 - Predictions catalogue containing the asteroids that were predicted to be in the FOV during the observation (__sso_predict.fits_). Prediction catalogue columns and header keywords are listed in the overleaf document mentioned above.
-- MPC submission file (__submit.txt_), to allow easy submission of the known object detections to the Minor Planet Center. Submission files are created, but not submitted automatically. 
+- MPC report (__sso_report.txt_), to allow easy submission of the known object detections to the Minor Planet Center. MPC reports are created, but not submitted automatically. 
 
 
 ## Running match2SSO
@@ -86,7 +86,7 @@ The steps match2SSO performs in the different modes are:
     3. Makes a prediction catalogue of the known solar system objects in the FOV during the observation.
     4. Runs astcheck on the MPC-formatted text file, to find matches between the detections and known solar system objects. 
     5. Makes an SSO catalogue containing the matches.
-    6. Makes an MPC submission file of the matches.
+    6. Makes an MPC report of the matches.
 - **Historic mode**<br/> Runs on a single detection catalogue (observation), a night of observations or a list of observations. The observations are grouped and processed per observing night. The historic mode:
     1. Creates a run directory per observation night
     2. [_Optional_] Downloads asteroid and comet databases to the database folder. (If this step is skipped, the most recently downloaded version of the database will be used.)
@@ -99,7 +99,7 @@ The steps match2SSO performs in the different modes are:
           <br/>c. Makes a prediction catalogue of the known solar system objects in the FOV during the observation.
           <br/>d. Runs astcheck on the MPC-formatted text file, to find matches between the detections and known solar system objects. 
           <br/>e. Makes an SSO catalogue containing the matches.
-          <br/>f. Makes an MPC submission file of the matches.<br/>
+          <br/>f. Makes an MPC report of the matches.<br/>
     7. [_Optional_] Removes the run directory, including files in it (SOF-formatted known objects database, symbolic links, MPC-formatted detection file, astcheck output text file). Also removes the integrated asteroid database.
     
 ## License

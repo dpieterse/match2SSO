@@ -187,7 +187,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     folders = load_and_check_folders(tel)
     if not folders: # Empty tuple
         return
-    input_folder, tmp_folder, log_folder, submission_folder = folders
+    input_folder, tmp_folder, log_folder, report_folder = folders
     
     # Logging
     setup_logfile(logname, log_folder)
@@ -209,11 +209,11 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
         day_mode(night_start, tel, tmp_folder, redownload)
         
     elif mode == "night":
-        night_mode(cat2process, night_start, tel, tmp_folder, submission_folder)
+        night_mode(cat2process, night_start, tel, tmp_folder, report_folder)
     
     elif mode == "historic" or "hist":
         hist_mode(cat2process, date2process, list2process, night_start, tel,
-                  input_folder, tmp_folder, submission_folder)
+                  input_folder, tmp_folder, report_folder)
     
     LOG.info("Finished running match2SSO.")
     log_timing_memory(t_glob, label="run_match2SSO")
@@ -317,7 +317,7 @@ def day_mode(night_start, tel, tmp_folder, redownload_db):
 # In[ ]:
 
 
-def night_mode(cat_name, night_start, tel, tmp_folder, submission_folder):
+def night_mode(cat_name, night_start, tel, tmp_folder, report_folder):
     
     """
     Run match2SSO on a single transient catalogue. The day mode should have been
@@ -329,7 +329,7 @@ def night_mode(cat_name, night_start, tel, tmp_folder, submission_folder):
       2) Runs astcheck on that file, to find matches between the transient
          detections and known solar system objects.
       3) Makes an SSO catalogue containing the matches.
-      4) Makes an MPC submission file of the matches.
+      4) Makes an MPC report of the matches.
     Running the night mode in parallel on multiple catalogues can be done by
     calling match2SSO (with --mode night) multiple times in parallel.
     
@@ -344,8 +344,8 @@ def night_mode(cat_name, night_start, tel, tmp_folder, submission_folder):
     tmp_folder: string
         Name of the folder that contains the known objects databases and the run
         directory.
-    submission_folder: string
-        Name of the folder in which the MPC submission files will be stored.
+    report_folder: string
+        Name of the folder in which the MPC reports will be stored.
     """
     
     LOG.info("Running the night mode on transient catalogue: \n%s", cat_name)
@@ -382,7 +382,7 @@ def night_mode(cat_name, night_start, tel, tmp_folder, submission_folder):
         logging.shutdown()
         return
     
-    _ = match_single_catalogue(cat_name, rundir, tmp_folder, submission_folder,
+    _ = match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
                                night_start, make_kod=False, redownload_db=False)
     
     # Beware that the run directory created for the processing of the
@@ -397,7 +397,7 @@ def night_mode(cat_name, night_start, tel, tmp_folder, submission_folder):
 
 
 def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
-              tmp_folder, submission_folder, redownload_db):
+              tmp_folder, report_folder, redownload_db):
     
     """
     The historic mode does the entire processing of match2SSO, including the
@@ -424,7 +424,7 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
       6) Runs astcheck on that file, to find matches between the transient
          detections and known solar system objects.
       7) Makes an SSO catalogue containing the matches.
-      8) Makes an MPC submission file of the matches.
+      8) Makes an MPC report of the matches.
     
     The historic mode can only be parallelised if there is no overlap in 
     observing nights.
@@ -449,8 +449,8 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
     tmp_folder: string
         Name of the folder that contains the known objects databases and the run
         directory.
-    submission_folder: string
-        Name of the folder in which the MPC submission files will be stored.
+    report_folder: string
+        Name of the folder in which the MPC reports will be stored.
     redownload_db: boolean
         Boolean to indicate whether the asteroid (and comet) databases should be
         redownloaded. Alternatively the most recently downloaded databases will
@@ -487,11 +487,10 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
             if first_night:
                 match_catalogues_single_night(
                     catalogues2process_1night, noon, redownload_db, tmp_folder,
-                    submission_folder)
+                    report_folder)
             else:
-                match_catalogues_single_night(
-                    catalogues2process_1night, noon, False, tmp_folder,
-                    submission_folder)
+                match_catalogues_single_night(catalogues2process_1night, noon,
+                                              False, tmp_folder, report_folder)
             first_night = False
         return
     
@@ -509,9 +508,8 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
                          date)
             return
     
-    match_catalogues_single_night(
-        catalogues2process, night_start, redownload_db, tmp_folder,
-        submission_folder)
+    match_catalogues_single_night(catalogues2process, night_start,
+                                  redownload_db, tmp_folder, report_folder)
     
     return
 
@@ -520,7 +518,7 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
 
 
 def match_catalogues_single_night(catalogues_single_night, night_start,
-                                  redownload_db, tmp_folder, submission_folder):
+                                  redownload_db, tmp_folder, report_folder):
     """
     Wrapper function that calls the match_single_catalogue function for
     each catalogue in a list that contains catalogues corresponding to
@@ -541,8 +539,8 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     tmp_folder: string
         Name of the folder containing the known objects databases, or where
         these databases can be downloaded.
-    submission_folder: string
-        Name of the folder in which the MPC submission files will be stored.
+    report_folder: string
+        Name of the folder in which the MPC reports will be stored.
     """
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -561,7 +559,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     make_kod = True
     for cat_name in catalogues_single_night:
         made_kod = match_single_catalogue(
-            cat_name, rundir, tmp_folder, submission_folder, night_start,
+            cat_name, rundir, tmp_folder, report_folder, night_start,
             make_kod, redownload_db)
         if made_kod:
             make_kod = False #Only make known objects database once
@@ -587,7 +585,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
 # In[ ]:
 
 
-def match_single_catalogue(cat_name, rundir, tmp_folder, submission_folder,
+def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
                            night_start, make_kod, redownload_db):
     """
     Run matching routine on a single transient catalogue. Optionally, a new
@@ -609,8 +607,8 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, submission_folder,
     tmp_folder: string
         Name of the folder containing the known objects databases, or where
         these databases can be downloaded.
-    submission_folder: string
-        Name of the folder in which the MPC submission files will be stored.
+    report_folder: string
+        Name of the folder in which the MPC reports will be stored.
     night_start: datetime object, including time zone
         Noon corresponding to the start of the local night during which the
         observation corresponding to the transient catalogue was made.
@@ -644,9 +642,8 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, submission_folder,
                                                                "_sso.fits")
     predict_cat = sso_cat.replace("_trans", "").replace("_sso.fits",
                                                         "_sso_predict.fits")
-    submission_file = "{}{}.txt".format(
-        submission_folder, os.path.basename(sso_cat).replace(".fits",
-                                                             "_submit"))
+    reportname = "{}{}.txt".format(
+        report_folder, os.path.basename(sso_cat).replace(".fits", "_report"))
     
     # Keep track of whether known object database has been made
     made_kod = False
@@ -663,31 +660,29 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, submission_folder,
     if isfile(predict_cat) and isfile(sso_cat) and not OVERWRITE_FILES:
         LOG.info("Prediction and SSO catalogues exist and won't be remade.\n")
         
-        # Check for any version of a submission file for this observation
-        submission_files = list_files(submission_file.replace(".txt", ""),
-                                      end_str=".txt")
-        if submission_files:
-            LOG.info("There is at least one version of an MPC submission file "
-                     "for this observation. No new one will be made.\n")
+        # Check for any version of an MPC report for this observation
+        reportnames = list_files(reportname.replace(".txt", ""), end_str=".txt")
+        if reportnames:
+            LOG.info("There is at least one version of an MPC report for this "
+                     "observation. No new one will be made.\n")
             return made_kod
         
-        # Check if MPC-formatted file that the submission creation function
-        # needs exists and get the MPC code. If it doesn't exist yet /
-        # anymore, remake this file first.
+        # Check if MPC-formatted file that the create_MPC_report function needs
+        # exists and get the MPC code. If it doesn't exist yet / anymore, remake
+        # this file first.
         mpc_code, create_dummy = convert_fits2mpc(cat_name, mpcformat_file)
         if mpc_code is None:
-            LOG.critical("Unknown MPC code - submission file will not be made.")
+            LOG.critical("Unknown MPC code - MPC report will not be made.")
             return made_kod
         
         if create_dummy:
-            # No submission file will need to be made, as the SSO catalogue is a
+            # No MPC report will need to be made, as the SSO catalogue is a
             # dummy (empty) catalogue.
             return made_kod
         
-        # Create a submission file that can be used to submit the detections
-        # that were matched to known solar system objects to the MPC
-        create_submission_file(sso_cat, mpcformat_file, submission_file, rundir,
-                               mpc_code)
+        # Create an report that can be used to submit the detections that were
+        # matched to known solar system objects to the MPC
+        create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code)
         
         if not KEEP_TMP:
             os.remove(mpcformat_file)
@@ -726,11 +721,10 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, submission_folder,
     # Make predictions catalogue
     N_sso = predictions(cat_name, rundir, predict_cat, mpc_code)
     
-    # Check if SSO catalogue and submission file already exist
-    submission_files = list_files(submission_file.replace(".txt", ""),
-                                  end_str=".txt")
-    if submission_files and isfile(sso_cat) and not OVERWRITE_FILES:
-        LOG.info("SSO catalogue and submission file exist and won't be remade.\n")
+    # Check if the SSO catalogue and MPC report already exist
+    reportnames = list_files(reportname.replace(".txt", ""), end_str=".txt")
+    if reportnames and isfile(sso_cat) and not OVERWRITE_FILES:
+        LOG.info("SSO catalogue and MPC report exist and won't be remade.\n")
         if not KEEP_TMP:
             os.remove(mpcformat_file)
             LOG.info("Removed %s", mpcformat_file)
@@ -744,10 +738,9 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, submission_folder,
     # Save matches found by astcheck to an SSO catalogue
     create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso)
     
-    # Create a submission file that can be used to submit the detections that
-    # were matched to known solar system objects to the MPC
-    create_submission_file(sso_cat, mpcformat_file, submission_file, rundir,
-                           mpc_code)
+    # Create a report that can be used to submit the detections that were
+    # matched to known solar system objects to the MPC
+    create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code)
     
     # Delete temporary files corresponding to the processed transient
     # catalogue. The other temporary files (the CHK files, the SOF file and the
@@ -772,7 +765,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, submission_folder,
 # * Convert transient catalogue to MPC format
 # * Run matching algorithm (astcheck) on file made in previous step
 # * Save solar system object detections (matches) to SSO catalogue
-# * Create submission file
+# * Create MPC report
 
 # In[ ]:
 
@@ -1455,9 +1448,9 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     Function converts the transient catalogue to a text file of the MPC
     80-column format, so that astcheck can run on it. For the asteroid / comet
     identifier used in the MPC file, the transient number is used. This
-    transient number cannot be used for MPC submissions as it is not all-time
-    unique (per telescope). But it is a straight-forward way to link detections
-    to known solar system objects within match2SSO.
+    transient number cannot be used for MPC reports as it is not all-time unique
+    (per telescope). But it is a straight-forward way to link detections to
+    known solar system objects within match2SSO.
     
     Negative transients are excluded from the MPC-formatted file. In the case of
     moving objects, these are sources that are present in the reference image
@@ -1774,57 +1767,55 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
 # In[ ]:
 
 
-def create_submission_file(sso_cat, mpcformat_file, submission_file, rundir,
-                           mpc_code):
+def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     
     """
-    Make an MPC submission file using the SSO catalogue and the MPC-formatted
-    file that were created within match2SSO to link the transient detections
-    from a single catalogue to known solar system objects. The detections
-    corresponding to matches are grouped in a 'known objects submission file'.
-    The identifiers used in the submission file are the packed designation of
-    the matching objects. These are the packed permanent designations if
-    available. Otherwise, the packed provisional designations are used.
+    Make an MPC report using the SSO catalogue and the MPC-formatted file that
+    were created within match2SSO to link the transient detections from a single
+    catalogue to known solar system objects. The detections corresponding to
+    matches are grouped in a 'known objects report'. The identifiers used in the
+    report are the packed designations of the matching objects. These are the
+    packed permanent designations if available. Otherwise, the packed
+    provisional designations are used.
     
-    The submission file will be compiled in a temporary folder and the complete
-    file will be moved to the submission files folder at the end of the
-    function.
+    The MPC report will be compiled in a temporary folder and the complete file
+    will be moved to the reports folder at the end of the function.
     
     Parameters:
     -----------
     sso_cat: string
         Path to and name of the SSO catalogue of which the matches need to be
-        converted to a submission file.
+        converted to a MPC report.
     mpcformat_file: string
         Name of the MPC formatted file that was made in match2SSO for the
         matching (but does not contain the correct SSO identifiers yet for
-        submission to the MPC).
-    submission_file: string
-        Name of the MPC submission file that will be made from the SSO
-        catalogue. The submission file should have the extension ".txt".
+        reporting to the MPC).
+    reportname: string
+        Name of the MPC report that will be made from the SSO catalogue. The
+        report should have the extension ".txt".
     rundir: string
-        Run directory in which the submission file will be created, before being
+        Run directory in which the MPC report will be created, before being
         moved to its proper destination as given in the [sso_cat] path.
     mpc_code: string
         MPC code corresponding to the telescope.
     """
-    mem_use(label="at start of create_submission_file")
-    LOG.info("Creating MPC submission file.")
+    mem_use(label="at start of create_MPC_report")
+    LOG.info("Creating MPC report...")
     if TIME_FUNCTIONS:
         t_func = time.time()
     
-    # Compose submission file name using run directory as path
-    destination = os.path.dirname(submission_file)
-    submission_filename = os.path.basename(submission_file).replace(
+    # Compose temporary report name using run directory as path
+    destination = os.path.dirname(reportname)
+    report_basename = os.path.basename(reportname).replace(
         ".txt", "_{}.txt".format(Time.now().strftime("%Y%m%dT%H%M%S")))
-    submission_file = rundir + submission_filename
-    destination_file = "/".join([destination, submission_filename])
+    reportname = rundir + report_basename
+    destination_file = "/".join([destination, report_basename])
     
     # Check if file already exists (will only happen when running this function
     # multiple times in close succession, as the production time is used in the
     # file name)
     if not OVERWRITE_FILES and isfile(destination_file):
-        LOG.info("Submission file already exists and will not be re-made.")
+        LOG.info("MPC report already exists and will not be re-made.")
         return
     
     # Open SSO catalogue
@@ -1833,21 +1824,19 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file, rundir,
     
     # Check SSO catalogue for matches
     if not sso_cat_content:
-        LOG.info("No matches found. Submission file will not be made.")
+        LOG.info("No matches found. MPC report will not be made.")
         return
     
-    # Create submission file
-    LOG.info("Creating submission file %s.", submission_file)
-    submission_file_content = open(submission_file, "w")
+    # Create MPC report
+    LOG.info("Creating report %s.", reportname)
+    report_content = open(reportname, "w")
     
-    # Write header to the submission file
-    submission_file_content.write(create_submission_header(submission_file,
-                                                           mpc_code))
+    # Write header to the report
+    report_content.write(create_report_header(reportname, mpc_code))
     
-    # Open MPC-formatted file as the submission file will be very similar, only
-    # with MPC designations rather than transient numbers as the first column.
-    # For a large part, the MPC-formatted file content will therefore be copied
-    # over.
+    # Open MPC-formatted file as the MPC report will be very similar, only with
+    # MPC designations rather than transient numbers as the first column. For a
+    # large part, the MPC-formatted file content will therefore be copied over.
     detections_mpcformat = pd.read_fwf(mpcformat_file, widths=[14, 66],
                                        names=["char1to14", "char15to80"],
                                        dtype={"char1to14":np.int32, 
@@ -1855,12 +1844,12 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file, rundir,
     
     # For each detection that was matched to a known solar system object,
     # get the packed designation of the matching object and write the detection
-    # to the submission file
+    # to the report
     for match_index in range(len(sso_cat_content[NUMBER_COLUMN])):
         designation = sso_cat_content["ID_SSO"][match_index].strip()
         
-        # Start creating the line of the submission file corresponding to the
-        # detection, by adding the packed designation of the object to the line
+        # Start creating the line of the report corresponding to the detection,
+        # by adding the packed designation of the object to the line
         if re.match(r"^[0-9]{4}\s[A-Z]", designation) or "/" in designation:
             # Provisional or survey designation
             packed_designation = wrapper_pack_provisional_designation(
@@ -1879,7 +1868,7 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file, rundir,
                                              fragment.rjust(7))
         
         # Get the detection details from the MPC-formatted file and add to the
-        # line of the submission file corresponding to the detection
+        # line of the MPC report corresponding to the detection
         detection_index = np.where(
             np.array(detections_mpcformat["char1to14"])
             == int(sso_cat_content[NUMBER_COLUMN][match_index]))[0]
@@ -1892,25 +1881,25 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file, rundir,
         detection_line = "".join([detection_line, detections_mpcformat[
             "char15to80"][detection_index]])
         
-        # Check line corresponding to detection and write to submission file if
+        # Check line corresponding to detection and write to the MPC report if
         # all is well
         if len(detection_line) != 80:
             LOG.error("Detection not formatted correctly in 80 columns:\n%s",
                       detection_line)
-        submission_file_content.write(detection_line+"\n")
+        report_content.write(detection_line+"\n")
     
-    submission_file_content.close()
+    report_content.close()
     
-    # Move submission file from run directory to final destination
-    LOG.info("Moving submission file to {}".format(destination))
-    copy_file(submission_file, destination_file, move=True)
+    # Move report from run directory to final destination
+    LOG.info("Moving report to {}".format(destination))
+    copy_file(reportname, destination_file, move=True)
     if isfile(destination_file):
-        LOG.warning("MPC submission file %s is overwritten.", destination_file)
+        LOG.warning("MPC report %s is overwritten.", destination_file)
     else:
-        LOG.info("MPC submission file saved to %s", destination_file)
+        LOG.info("MPC report saved to %s", destination_file)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="create_submission_file")
+        log_timing_memory(t_func, label="create_MPC_report")
     
     return
 
@@ -1918,40 +1907,39 @@ def create_submission_file(sso_cat, mpcformat_file, submission_file, rundir,
 # In[ ]:
 
 
-def create_submission_header(submission_file, mpc_code, comment=None):
+def create_report_header(reportname, mpc_code, comment=None):
     
     """
-    Function composes the header of the MPC submission file corresponding to a
-    single transient catalogue.
+    Function composes the header of the MPC report corresponding to a single
+    transient catalogue.
     
     Parameters:
     -----------
-    submission_file: string
-        Name of the submission file for which the header is composed.
+    reportname: string
+        Name of the MPC report for which the header is composed.
     mpc_code: string
         MPC code of the telescope with which the observation was made.
     comment: string
         Comment to be added to the header in the COM line. By default, this is
         None, meaning that the COM line is not added to the header.
     """
-    mem_use(label="at start of create_submission_header")
-    LOG.info("Creating header for submission file.")
+    mem_use(label="at start of create_report_header")
+    LOG.info("Creating header for MPC report...")
     if TIME_FUNCTIONS:
         t_func = time.time()
     
     firstline = "COD {}\n".format(mpc_code)
-    mainheader = get_par(settingsFile.submissionHeader, mpc_code)
+    mainheader = get_par(settingsFile.MPCreportHeader, mpc_code)
     
     # Special cases for which a phrase needs to be included in the ACK line
-    # of the header of the MPC submission file:
+    # of the header of the MPC report:
     # neocand = "NEO CANDIDATE" #submitting new NEO candidate
     # neocp = "NEOCP"           #submitting observations of NEOCP objects
-    # Add ACK line to the header of the MPC submission file.
     
-    ack_line = "ACK {}\n".format(Path(submission_file).stem)
+    # Add ACK line to the header of the MPC report.
+    ack_line = "ACK {}\n".format(Path(reportname).stem)
     if len(ack_line) > 82:
-        LOG.error("ACK line in submission file %s is too long!",
-                  submission_file)
+        LOG.error("ACK line in report %s is too long!" %reportname)
     
     # Add COM line to the header
     com_line = ""
@@ -1962,9 +1950,9 @@ def create_submission_header(submission_file, mpc_code, comment=None):
         else:
             com_line = "COM {}\n".format(comment)
     
-    LOG.info("Submission file header complete.")
+    LOG.info("MPC report header complete.")
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="create_submission_header")
+        log_timing_memory(t_func, label="create_report_header")
     
     return "".join([firstline, mainheader, ack_line, com_line])
 
@@ -2239,7 +2227,7 @@ def wrapper_pack_provisional_designation(full_designation):
     pack_provisional_designation_asteroid.
     
     The function returns an 8-character long string, spanning columns 5-12 in
-    the submission file, or None in case of an issue.
+    the MPC report, or None in case of an issue.
     
     Parameters:
     -----------
@@ -2285,7 +2273,7 @@ def pack_provisional_designation_asteroid(full_designation, pack_year):
     using the definitions given in
     https://www.minorplanetcenter.net/iau/info/PackedDes.html#prov
     We add a space in front so that the returned string is 8 characters long,
-    spanning columns 5-12 in the submission file. The function returns None in
+    spanning columns 5-12 in the MPC report. The function returns None in
     case of an issue.
     
     Parameters:
@@ -2330,7 +2318,7 @@ def pack_provisional_designation_comet(full_designation, pack_year):
     for comets a character is added in front of the provisional designation (at
     column 5), describing the comet type.
     The function returns an 8-character long string, spanning columns 5-12 in
-    the submission file, or None in case of an issue.
+    the MPC report, or None in case of an issue.
     
     Parameters:
     -----------
@@ -2365,7 +2353,7 @@ def pack_provisional_designation_comet(full_designation, pack_year):
         if fragment != "0":
             # A comet with two letters in its provisional designation after
             # the space and a fragment letter cannot be submitted in the old
-            # submission format. It can in the new ADES format, but we are
+            # report format. It can in the new ADES format, but we are
             # not yet using this. Skip detection.
             LOG.error("Provisional designation of comet %s cannot be packed."
                       "Skipping it.", full_designation)
@@ -2519,13 +2507,13 @@ def load_and_check_folders(tel):
     input_folder = get_par(settingsFile.inputFolder, tel)
     tmp_folder = get_par(settingsFile.tmpFolder, tel)
     log_folder = get_par(settingsFile.logFolder, tel)
-    submission_folder = get_par(settingsFile.submissionFolder, tel)
+    report_folder = get_par(settingsFile.MPCreportFolder, tel)
     
     # Check if folder names end with a slash
     input_folder = check_folder_name(input_folder)
     tmp_folder = check_folder_name(tmp_folder)
     log_folder = check_folder_name(log_folder)
-    submission_folder = check_folder_name(submission_folder)
+    report_folder = check_folder_name(report_folder)
     
     # Check if critical folders exists. If not, return an empty list.
     if not isdir(input_folder):
@@ -2536,10 +2524,10 @@ def load_and_check_folders(tel):
     # as that is taken care of in the setup_logfile function.
     if not os.path.isdir(tmp_folder):
         os.makedirs(tmp_folder)
-    if submission_folder[0:5] != 'gs://' and not isdir(submission_folder):
-        os.makedirs(submission_folder)
+    if report_folder[0:5] != 'gs://' and not isdir(report_folder):
+        os.makedirs(report_folder)
     
-    folders = (input_folder, tmp_folder, log_folder, submission_folder)
+    folders = (input_folder, tmp_folder, log_folder, report_folder)
     
     return folders
 
