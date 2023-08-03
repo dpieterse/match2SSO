@@ -191,8 +191,8 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     
     # Logging
     setup_logfile(logname, log_folder)
-    LOG.info("Mode: %s", mode)
-    mem_use(label="at start of run_match2SSO")
+    LOG.info("Mode: {}".format(mode))
+    #mem_use(label="at start of run_match2SSO")
     
     # Get local noon corresponding to the night start in case date2process or
     # cat2process are specified.
@@ -280,12 +280,12 @@ def day_mode(night_start, tel, tmp_folder, redownload_db):
                                             .format(rundir_previous))
             if "epoch" in asteroid_database:
                 os.remove(asteroid_database)
-                LOG.info("Removed %s", asteroid_database)
+                LOG.info("Removed {}".format(asteroid_database))
         remove_tmp_folder(rundir_previous)
     
     # Create a run directory corresponding to the observation night
     rundir = ("{}{}/".format(tmp_folder, night_start.strftime("%Y%m%d")))
-    LOG.info("Run directory: %s", rundir)
+    LOG.info("Run directory: {}".format(rundir))
     if not os.path.isdir(rundir):
         os.makedirs(rundir)
     
@@ -348,11 +348,12 @@ def night_mode(cat_name, night_start, tel, tmp_folder, report_folder):
         Name of the folder in which the MPC reports will be stored.
     """
     
-    LOG.info("Running the night mode on transient catalogue: \n%s", cat_name)
+    LOG.info("Running the night mode on transient catalogue: \n{}"
+             .format(cat_name))
     
     # Get name of run directory
     rundir = "{}{}/".format(tmp_folder, night_start.strftime("%Y%m%d"))
-    LOG.info("Run directory: %s", rundir)
+    LOG.info("Run directory: {}".format(rundir))
     
     # Check for known object database products. Stop processing if it doesn't
     # exist.
@@ -366,11 +367,11 @@ def night_mode(cat_name, night_start, tel, tmp_folder, report_folder):
     night_start_utc = night_start_utc.strftime("%Y%m%d")
     night_end_utc = night_end_utc.strftime("%Y%m%d")
     if not isfile("{}{}.chk".format(rundir, night_start_utc)):
-        LOG.critical("Missing %s.chk!", night_start_utc)
+        LOG.critical("Missing {}.chk!".format(night_start_utc))
         logging.shutdown()
         return
     if not isfile("{}{}.chk".format(rundir, night_end_utc)):
-        LOG.critical("Missing %s.chk!", night_end_utc)
+        LOG.critical("Missing {}.chk!".format(night_end_utc))
         logging.shutdown()
         return
     del night_start_utc
@@ -378,7 +379,7 @@ def night_mode(cat_name, night_start, tel, tmp_folder, report_folder):
     
     # Check for observatory codes list. Stop processing if it doesn't exist
     if not isfile("{}ObsCodes.html".format(rundir)):
-        LOG.critical("%sObsCodes.html doesn't exist.", rundir)
+        LOG.critical("{}ObsCodes.html doesn't exist.".format(rundir))
         logging.shutdown()
         return
     
@@ -460,7 +461,8 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
     """
     
     if catlist:
-        LOG.info("Running historic mode on catalogue list: \n%s", catlist)
+        LOG.info("Running historic mode on catalogue list: \n{}"
+                 .format(catlist))
         
         # Open catalogue list
         with open(catlist, "r") as catalogue_list:
@@ -472,10 +474,10 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
             "%Y%m%d %H%M%S") for catname in catalogues2process]
         
         # Process files per night
-        LOG.info("Catalogue list spans %i nights", len(np.unique(noons)))
+        LOG.info("Catalogue list spans {} nights".format(len(np.unique(noons))))
         first_night = True
         for noon in np.unique(noons):
-            LOG.info("Processing night that starts at %s", noon)
+            LOG.info("Processing night that starts at {}".format(noon))
             night_index = np.where(np.array(noons) == noon)[0]
             catalogues2process_1night = np.array(
                 catalogues2process)[night_index]
@@ -495,17 +497,18 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
         return
     
     if cat_name:
-        LOG.info("Running historic mode on transient catalogue: \n%s", cat_name)
+        LOG.info("Running historic mode on transient catalogue: \n{}"
+                 .format(cat_name))
         catalogues2process = (cat_name)
     
     elif date:
-        LOG.info("Running historic mode on night %s", date)
+        LOG.info("Running historic mode on night {}".format(date))
         catalogues2process = get_transient_filenames(
             input_folder, night_start, night_start+timedelta(days=1), tel)
         
         if not catalogues2process:
-            LOG.critical("No (light) transient catalogues exist for night %s",
-                         date)
+            LOG.critical("No (light) transient catalogues exist for night {}"
+                         .format(date))
             return
     
     match_catalogues_single_night(catalogues2process, night_start,
@@ -545,13 +548,13 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     if TIME_FUNCTIONS:
         t_func = time.time()
     
-    LOG.info("%i catalogues to process for the night around %s.",
-             len(catalogues_single_night),
-             night_start.strftime("%Y-%m-%d %H:%M:%S"))
+    LOG.info("{} catalogues to process for the night around {}.".format(
+        len(catalogues_single_night),
+        night_start.strftime("%Y-%m-%d %H:%M:%S")))
     
     #Create run directory
     rundir = "{}{}/".format(tmp_folder, night_start.strftime("%Y%m%d"))
-    LOG.info("Run directory: %s", rundir)
+    LOG.info("Run directory: {}".format(rundir))
     if not os.path.isdir(rundir):
         os.makedirs(rundir)
     
@@ -571,7 +574,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
             asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
             if "epoch" in asteroid_database:
                 os.remove(asteroid_database)
-                LOG.info("Removed %s", asteroid_database)
+                LOG.info("Removed {}".format(asteroid_database))
         
         #Remove temporary folder made for this night
         remove_tmp_folder(rundir)
@@ -624,10 +627,10 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
         the known objects database. Alternatively, the most recent, previously
         downloaded version of the databases are used.
     """
-    mem_use(label="at start of match_single_catalogue")
+    #mem_use(label="at start of match_single_catalogue")
     if TIME_FUNCTIONS:
         t_func = time.time()
-    LOG.info("Running match2SSO on %s", cat_name)
+    LOG.info("Running match2SSO on {}".format(cat_name))
     
     # Check if input catalogue exists and is not flagged red
     is_existing, is_dummy, cat_name = check_input_catalogue(cat_name)
@@ -686,7 +689,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
         
         if not KEEP_TMP:
             os.remove(mpcformat_file)
-            LOG.info("Removed %s", mpcformat_file)
+            LOG.info("Removed {}".format(mpcformat_file))
         return made_kod
     
     # Convert the transient catalogue to an MPC-formatted text file
@@ -727,7 +730,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
         LOG.info("SSO catalogue and MPC report exist and won't be remade.\n")
         if not KEEP_TMP:
             os.remove(mpcformat_file)
-            LOG.info("Removed %s", mpcformat_file)
+            LOG.info("Removed {}".format(mpcformat_file))
         return made_kod
     
     # Run astcheck on the MPC-formatted transient file
@@ -748,9 +751,9 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
     # might be needed for processing of other data from the same night.
     if not KEEP_TMP:
         os.remove(mpcformat_file)
-        LOG.info("Removed %s", mpcformat_file)
+        LOG.info("Removed {}".format(mpcformat_file))
         os.remove(astcheck_file)
-        LOG.info("Removed %s", astcheck_file)
+        LOG.info("Removed {}".format(astcheck_file))
     
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="match_single_catalogue")
@@ -821,7 +824,7 @@ def create_chk_files(noon, noon_type, rundir):
     # Create MPC-formatted file with fake detection
     mpcformat_file_fake = "{}fakedetection_{}_MPCformat.txt".format(rundir,
                                                                     noon_type)
-    LOG.info("Creating fake detection: %s", mpcformat_file_fake)
+    LOG.info("Creating fake detection: {}".format(mpcformat_file_fake))
     mpcformat_file_fake_content = open(mpcformat_file_fake, "w")
     fake_detection = "".join([
         "     0000001  C{} {:0>2} {:08.5f} "
@@ -841,9 +844,9 @@ def create_chk_files(noon, noon_type, rundir):
     # Remove MPC-formatted file and astcheck output related to the fake
     # detection
     os.remove(mpcformat_file_fake)
-    LOG.info("Removed %s", mpcformat_file_fake)
+    LOG.info("Removed {}".format(mpcformat_file_fake))
     os.remove(astcheck_file_fake)
-    LOG.info("Removed %s", astcheck_file_fake)
+    LOG.info("Removed {}".format(astcheck_file_fake))
     
     return
 
@@ -895,23 +898,23 @@ def download_database(sso_type, redownload_db, tmp_folder):
         
     #Download database if desired and get database version
     if download:
-        LOG.info("Downloading %s database...", sso_type)
+        LOG.info("Downloading {} database...".format(sso_type))
         database_version = datetime.utcnow().strftime("%Y%m%dT%H%M")
         database_name = "{}{}DB_version{}.dat".format(tmp_folder, sso_type,
                                                       database_version)
         req = requests.get(database_url, allow_redirects=True)
         open(database_name, "wb").write(req.content)
-        LOG.info("%s database version: %s", sso_type, database_version)
+        LOG.info("{} database version: {}".format(sso_type, database_version))
         
         #Remove asteroids with large orbital uncertainties from database
         if sso_type == "asteroid":
             select_asteroids_on_uncertainty(database_name)
             
         if not KEEP_TMP and len(existing_databases) > 0:
-            LOG.info("Removing older %s database versions.", sso_type)
+            LOG.info("Removing older {} database versions.".format(sso_type))
             for old_database in existing_databases:
                 os.remove(old_database)
-                LOG.info("Removed %s.", old_database)
+                LOG.info("Removed {}.".format(old_database))
     else:
         #Retrieve most recent (unintegrated) database version. If there is no
         #unintegrated database, retrieve the most recent integrated one. Empty
@@ -924,7 +927,7 @@ def download_database(sso_type, redownload_db, tmp_folder):
         database_version = os.path.splitext(
             os.path.basename(database_name))[0].split("_")[1].replace(
                 "version", "")
-        LOG.info("%s database version %s", sso_type, database_version)
+        LOG.info("{} database version {}".format(sso_type, database_version))
     
     if TIME_FUNCTIONS:
         log_timing_memory(t_subfunc, label="downloadDatabase ({})"
@@ -966,7 +969,7 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
         integrated to the observation epoch (midnight on the observation
         night).
     """
-    mem_use(label="at start of create_known_objects_database")
+    #mem_use(label="at start of create_known_objects_database")
     if TIME_FUNCTIONS:
         t_func = time.time()
     
@@ -1002,8 +1005,8 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
         "{}asteroidDB_version{}_epoch{}.dat"
         .format(tmp_folder, asteroid_database_version, midnight_utc_str))
     if not isfile(integrated_asteroid_database):
-        LOG.info("Integrating asteroid database to epoch %s...",
-                 midnight_utc_str)
+        LOG.info("Integrating asteroid database to epoch {}..."
+                 .format(midnight_utc_str))
         if TIME_FUNCTIONS:
             t_subtiming = time.time()
         subprocess.run(["integrat", asteroid_database,
@@ -1023,7 +1026,7 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
         LOG.info("Removing the old MPCORB.DAT symbolic link")
         os.unlink(symlink_asteroid_database)
     os.symlink(integrated_asteroid_database, symlink_asteroid_database)
-    LOG.info("Created symbolic link %s", symlink_asteroid_database)
+    LOG.info("Created symbolic link {}".format(symlink_asteroid_database))
     
     if INCLUDE_COMETS:
         symlink_comet_database = "{}ELEMENTS.COMET".format(rundir)
@@ -1032,8 +1035,8 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
             os.unlink(symlink_comet_database)
         os.symlink("{}cometDB_version{}.dat".format(
             tmp_folder, comet_database_version), symlink_comet_database)
-        LOG.info("Created symbolic link %s", symlink_comet_database)
-    mem_use(label="after creating symbolic links to the databases")
+        LOG.info("Created symbolic link {}".format(symlink_comet_database))
+    #mem_use(label="after creating symbolic links to the databases")
     
     # Combine the known comets and asteroids into a SOF file, which astcheck
     # will then use as input
@@ -1070,7 +1073,7 @@ def select_asteroids_on_uncertainty(asteroid_database):
     asteroid_database: string
         Name of the full asteroid database (MPCORB-formatted text-file).
     """
-    mem_use(label="at start of select_asteroids_on_uncertainty")
+    #mem_use(label="at start of select_asteroids_on_uncertainty")
     
     if settingsFile.maxUncertainty is None:
         LOG.info("All known solar system bodies are used in the matching, "
@@ -1124,11 +1127,11 @@ def select_asteroids_on_uncertainty(asteroid_database):
                     asteroid_database_content_new.write(line)
                     number_asteroids_post_selection += 1
     
-    LOG.info("%i out of %i asteroids have U <= %s", 
-             number_asteroids_post_selection, number_asteroids_pre_selection,
-             settingsFile.maxUncertainty)
-    LOG.info("Asteroid database now only includes sources with U <= %s",
-             settingsFile.maxUncertainty)
+    LOG.info("{} out of {} asteroids have U <= {}".format(
+        number_asteroids_post_selection, number_asteroids_pre_selection,
+        settingsFile.maxUncertainty))
+    LOG.info("Asteroid database now only includes sources with U <= {}"
+             .format(settingsFile.maxUncertainty))
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="select_asteroids_on_uncertainty")
     
@@ -1165,7 +1168,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
         Boolean indicating if the FOV is circular. If False, a square FOV is
         assumed where the sides are aligned with RA & Dec.
     """
-    mem_use(label="at start of predictions")
+    #mem_use(label="at start of predictions")
     
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1261,7 +1264,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
     # Remove temporary astcheck output file
     if not KEEP_TMP:
         os.remove(output_file)
-        LOG.info("Removed %s", output_file)
+        LOG.info("Removed {}".format(output_file))
     
     # In case of a square FOV, disregard SSOs outside the FOV
     if not is_FOV_circle and len(output_table)>0:
@@ -1286,7 +1289,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
     fitstable = format_cat(output_table, start_header=sso_header)
     save_fits(fitstable, predict_cat, rundir=rundir)
     
-    LOG.info("Predictions saved to %s.", predict_cat)
+    LOG.info("Predictions saved to {}.".format(predict_cat))
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="predictions")
     
@@ -1325,7 +1328,7 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
         the catalogue containing the predicted objects in the FOV and some of
         the header keywords will not be included in the header.
     """
-    mem_use(label="at start of create_sso_header")
+    #mem_use(label="at start of create_sso_header")
     LOG.info("Creating SSO header.")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1344,7 +1347,7 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     cpp_macro = proc.stdout.decode("utf-8").replace("\n", "").split()[-1]
     
     if cpp_macro not in settingsFile.CPPmacro2version.keys():
-        LOG.error("C++ macro unknown: %s", cpp_macro)
+        LOG.error("C++ macro unknown: {}".format(cpp_macro))
         cpp_version = "None"
     else:
         cpp_version = settingsFile.CPPmacro2version[cpp_macro]
@@ -1424,8 +1427,7 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
                        "maximum orbital uncertainty parameter")
     
     # Add number of (predicted) detections to header
-    header["N-SSO"] = (N_sso, "predicted number of bright solar system objects "
-                       "in the FOV")
+    header["N-SSO"] = (N_sso, "predicted number of bright SSOs in FOV")
     if incl_detections:
         header["N-SSODET"] = (N_det, "number of detected solar system objects")
     
@@ -1473,7 +1475,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
         Path to and name of the MPC-formatted text file that is made in this
         function.
     """
-    mem_use(label="at start of convert_fits2mpc")
+    #mem_use(label="at start of convert_fits2mpc")
     LOG.info("Converting transient catalogue to MPC-format.")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1487,8 +1489,8 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     if mpc_code not in list(pd.read_fwf(settingsFile.obsCodesFile,
                                         widths=[4, 2000],
                                         skiprows=1)["Code"])[:-1]:
-        LOG.critical("MPC code %s is not in the MPC list of observatory codes",
-                     mpc_code)
+        LOG.critical("MPC code {} is not in the MPC list of observatory codes"
+                     .format(mpc_code))
         return None, True
     
     # Check if MPC-formatted file exists and if it should be overwritten or not
@@ -1548,7 +1550,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     
     mpcformat_file_content.close()
     
-    LOG.info("MPC-formatted file saved to %s.", mpcformat_file)
+    LOG.info("MPC-formatted file saved to {}.".format(mpcformat_file))
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="convert_fits2mpc")
     
@@ -1584,7 +1586,7 @@ def run_astcheck(mpcformat_file, rundir, output_file,
         Matching radius in arcsec. The default value is the one specified in
         the settings file [set_match2SSO.py].
     """
-    mem_use(label="at start of run_astcheck")
+    #mem_use(label="at start of run_astcheck")
     LOG.info("Running astcheck: matching detections to known solar system "
              "bodies.")
     if TIME_FUNCTIONS:
@@ -1605,7 +1607,7 @@ def run_astcheck(mpcformat_file, rundir, output_file,
                     stdout=output_file_content, cwd=rundir)
     output_file_content.close()
     
-    LOG.info("Matches saved to %s.", output_file)
+    LOG.info("Matches saved to {}.".format(output_file))
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="run_astcheck")
     
@@ -1640,7 +1642,7 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         and AB magnitudes is ignored here. This number is therefore a rough
         prediction for the number of detections.
     """
-    mem_use(label="at start of create_sso_catalogue")
+    #mem_use(label="at start of create_sso_catalogue")
     LOG.info("Converting astcheck output into an SSO catalogue.")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1729,8 +1731,8 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
             try:
                 magnitude = float(magnitude)
             except ValueError:
-                LOG.warning("Magnitude '%s' could not be converted to float.",
-                            magnitude)
+                LOG.warning("Magnitude '{}' could not be converted to float."
+                            .format(magnitude))
                 magnitude = None
         
             # Add match to output table
@@ -1757,7 +1759,7 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
     fitstable = format_cat(output_table, start_header=sso_header)
     save_fits(fitstable, sso_cat, rundir=rundir)
     
-    LOG.info("Matches saved to SSO catalogue: %s", sso_cat)
+    LOG.info("Matches saved to SSO catalogue: {}".format(sso_cat))
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="create_sso_catalogue")
     
@@ -1799,7 +1801,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     mpc_code: string
         MPC code corresponding to the telescope.
     """
-    mem_use(label="at start of create_MPC_report")
+    #mem_use(label="at start of create_MPC_report")
     LOG.info("Creating MPC report...")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1828,7 +1830,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
         return
     
     # Create MPC report
-    LOG.info("Creating report %s.", reportname)
+    LOG.info("Writing report {}".format(reportname))
     report_content = open(reportname, "w")
     
     # Write header to the report
@@ -1873,9 +1875,9 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
             np.array(detections_mpcformat["char1to14"])
             == int(sso_cat_content[NUMBER_COLUMN][match_index]))[0]
         if len(detection_index) != 1:
-            LOG.error("%i detections found that correspond to transient number"
-                      " %i. Should be only one.", len(detection_index),
-                      int(sso_cat_content[NUMBER_COLUMN][match_index]))
+            LOG.error("{} detections found that correspond to transient number"
+                      " {}. Should be only one.".format(len(detection_index),
+                      int(sso_cat_content[NUMBER_COLUMN][match_index])))
             continue
         detection_index = detection_index[0]
         detection_line = "".join([detection_line, detections_mpcformat[
@@ -1884,8 +1886,8 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
         # Check line corresponding to detection and write to the MPC report if
         # all is well
         if len(detection_line) != 80:
-            LOG.error("Detection not formatted correctly in 80 columns:\n%s",
-                      detection_line)
+            LOG.error("Detection not formatted correctly in 80 columns:\n{}"
+                      .format(detection_line))
         report_content.write(detection_line+"\n")
     
     report_content.close()
@@ -1894,9 +1896,9 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     LOG.info("Moving report to {}".format(destination))
     copy_file(reportname, destination_file, move=True)
     if isfile(destination_file):
-        LOG.warning("MPC report %s is overwritten.", destination_file)
+        LOG.warning("MPC report {} is overwritten.".format(destination_file))
     else:
-        LOG.info("MPC report saved to %s", destination_file)
+        LOG.info("MPC report saved to {}".format(destination_file))
     
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="create_MPC_report")
@@ -1923,7 +1925,7 @@ def create_report_header(reportname, mpc_code, comment=None):
         Comment to be added to the header in the COM line. By default, this is
         None, meaning that the COM line is not added to the header.
     """
-    mem_use(label="at start of create_report_header")
+    #mem_use(label="at start of create_report_header")
     LOG.info("Creating header for MPC report...")
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -1939,7 +1941,7 @@ def create_report_header(reportname, mpc_code, comment=None):
     # Add ACK line to the header of the MPC report.
     ack_line = "ACK {}\n".format(Path(reportname).stem)
     if len(ack_line) > 82:
-        LOG.error("ACK line in report %s is too long!" %reportname)
+        LOG.error("ACK line in report {} is too long!".format(reportname))
     
     # Add COM line to the header
     com_line = ""
@@ -2001,10 +2003,10 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
         Boolean indicating whether red-flagged (dummy) catalogues should be
         excluded or not.
     """
-    mem_use(label="at start of get_transient_filenames")
-    LOG.info("Selecting transient catalogues between %s and %s."
-             %(minimal_date.strftime("%Y-%m-%d %H:%M:%S"),
-               maximal_date.strftime("%Y-%m-%d %H:%M:%S")))
+    #mem_use(label="at start of get_transient_filenames")
+    LOG.info("Selecting transient catalogues between {} and {}."
+             .format(minimal_date.strftime("%Y-%m-%d %H:%M:%S"),
+                     maximal_date.strftime("%Y-%m-%d %H:%M:%S")))
     if TIME_FUNCTIONS:
         t_func = time.time()
     
@@ -2075,14 +2077,14 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
                 LOG.info("Excluding red-flagged (dummy) catalogues.")
                 
                 if DUMMY_KEYWORD not in header.keys():
-                    LOG.critical("%s not in the header!", DUMMY_KEYWORD)
+                    LOG.critical("{} not in the header!".format(DUMMY_KEYWORD))
                     return []
                 
                 if not header[DUMMY_KEYWORD]:
                     files2process.append(transient_cat)
     
-    LOG.info("%i transient catalogues have been selected.",
-             len(files2process))
+    LOG.info("{} transient catalogues have been selected."
+             .format(len(files2process)))
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="get_transient_filenames")
     return files2process
@@ -2203,8 +2205,8 @@ def pack_permanent_designation(full_designation):
                                                 abbreviate_number(remainder))
     # Final check
     if len(packed_designation) != 5:
-        LOG.error("Packed permanent designation is of incorrect length: '%s'",
-                  packed_designation)
+        LOG.error("Packed permanent designation is of incorrect length: '{}'"
+                  .format(packed_designation))
         return None, ""
     
     return packed_designation, fragment
@@ -2286,8 +2288,8 @@ def pack_provisional_designation_asteroid(full_designation, pack_year):
     """
     
     if int(full_designation[:2]) not in pack_year.keys():
-        LOG.error("Provisional designation of asteroid %s cannot be packed. "
-                  "Skipping it.", full_designation)
+        LOG.error("Provisional designation of asteroid {} cannot be packed. "
+                  "Skipping it.".format(full_designation))
         return None
     
     packed_year = "{}{}".format(pack_year[int(full_designation[:2])],
@@ -2299,7 +2301,7 @@ def pack_provisional_designation_asteroid(full_designation, pack_year):
     # Final check
     if len(packed_designation) != 8:
         LOG.error("Packed provisional designation is of incorrect length: "
-                  "'%s'", packed_designation)
+                  "'{}'".format(packed_designation))
         return None
     
     return packed_designation
@@ -2340,8 +2342,8 @@ def pack_provisional_designation_comet(full_designation, pack_year):
     year, remainder = designation.split(" ")
         
     if int(year[:2]) not in pack_year.keys():
-        LOG.error("Provisional designation of comet %s cannot be packed. "
-                  "Skipping it.", full_designation)
+        LOG.error("Provisional designation of comet {} cannot be packed. "
+                  "Skipping it.".format(full_designation))
         return None
     
     packed_year = "{}{}".format(pack_year[int(year[:2])], year[2:])
@@ -2355,8 +2357,8 @@ def pack_provisional_designation_comet(full_designation, pack_year):
             # the space and a fragment letter cannot be submitted in the old
             # report format. It can in the new ADES format, but we are
             # not yet using this. Skip detection.
-            LOG.error("Provisional designation of comet %s cannot be packed."
-                      "Skipping it.", full_designation)
+            LOG.error("Provisional designation of comet {} cannot be packed."
+                      "Skipping it.".format(full_designation))
             return None
         
         # Although this object is not a fragment, its provisional designation
@@ -2368,8 +2370,8 @@ def pack_provisional_designation_comet(full_designation, pack_year):
     # There should be at most three digits after the space-letter combination
     # in the provisional designation.
     if len(remainder) > 4:
-        LOG.error("Unclear how to pack provisional designation of comet %s. "
-                  "Skipping it.", full_designation)
+        LOG.error("Unclear how to pack provisional designation of comet {}. "
+                  "Skipping it.".format(full_designation))
         return None
     
     if int(year[:2]) not in pack_year.keys():
@@ -2383,7 +2385,7 @@ def pack_provisional_designation_comet(full_designation, pack_year):
     # Final check
     if len(packed_designation) != 8:
         LOG.error("Packed provisional designation is of incorrect length: "
-                  "'%s'", packed_designation)
+                  "'{}'".format(packed_designation))
         return None
     
     return packed_designation
@@ -2641,7 +2643,7 @@ def log_timing_memory(t_in, label=""):
     
     """Function to report the time and memory spent in a function."""
     
-    LOG.info("wall-time spent in %s: %.3f s", label, time.time()-t_in)
+    LOG.info("wall-time spent in {}: {:.3f} s".format(label, time.time()-t_in))
     #mem_use(label=label)
     
     return
@@ -2667,8 +2669,8 @@ def mem_use(label=""):
     mem_now = psutil.Process().memory_info().rss / 1024**3
     mem_virt = psutil.Process().memory_info().vms / 1024**3
     
-    LOG.info("memory use [GB]: rss=%.3f, maxrss=%.3f, vms=%.3f in %s", mem_now,
-             mem_max, mem_virt, label)
+    LOG.info("memory use [GB]: rss={:.3f}, maxrss={:.3f}, vms={:.3f} in {}"
+             .format(mem_now, mem_max, mem_virt, label))
     
     return
 
@@ -2736,7 +2738,8 @@ def check_input_catalogue(cat_name):
             cat_name = light_cat
     
     if not isfile(cat_name):
-        LOG.critical("The specified catalog does not exist:\n%s", cat_name)
+        LOG.critical("The specified catalog does not exist:\n{}"
+                     .format(cat_name))
         return False, None, cat_name
     
     # Check quality control flag of the catalogue
@@ -2744,11 +2747,12 @@ def check_input_catalogue(cat_name):
         header = hdu[1].header
     
     if DUMMY_KEYWORD not in header.keys():
-        LOG.critical("%s not in the header of %s!", DUMMY_KEYWORD, cat_name)
+        LOG.critical("{} not in the header of {}!".format(DUMMY_KEYWORD,
+                                                          cat_name))
         return False, None, cat_name
     
     if header[DUMMY_KEYWORD]:
-        LOG.info("%s is a dummy catalogue.", cat_name)
+        LOG.info("{} is a dummy catalogue.".format(cat_name))
         return True, True, cat_name
     
     return True, False, cat_name
@@ -3141,7 +3145,7 @@ def format_cat(data, header=None, header_keys=[], start_header=None):
         Header which will be included in the header of the output catalogue.
         start_header can be None.
     """
-    mem_use(label="at start of format_cat")
+    #mem_use(label="at start of format_cat")
     
     # Format fits table data
     columns = []
@@ -3176,7 +3180,8 @@ def format_cat(data, header=None, header_keys=[], start_header=None):
     # Combine formatted fits columns and header into output binary fits table
     fitstable = fits.BinTableHDU.from_columns(columns, header=finalheader)
     
-    mem_use(label="at end of format_cat")
+    LOG.info("{} sources in catalogue".format(len(fitstable)))
+    #mem_use(label="at end of format_cat")
     return fitstable
 
 
@@ -3204,7 +3209,7 @@ def save_fits(fitstable, outputname, rundir="", overwrite=True):
     overwrite: boolean
         Determines whether fits table may be overwritten if it exists already.
     """
-    mem_use (label='save_fits at start')
+    #mem_use(label='save_fits at start')
     
     # Dealing with google cloud bucket?
     google_cloud = (outputname[0:5] == 'gs://')
@@ -3233,7 +3238,7 @@ def save_fits(fitstable, outputname, rundir="", overwrite=True):
         dest_folder = os.path.dirname(outputname)
         copy_file(fits_tmp, dest_folder+'/', move=True)
     
-    mem_use (label='save_fits at end')
+    #mem_use(label='save_fits at end')
     return
 
 
@@ -3249,11 +3254,11 @@ def remove_tmp_folder(tmp_path):
     
     if isdir(tmp_path):
         shutil.rmtree(tmp_path)
-        LOG.info("Removing temporary folder: %s", tmp_path)
+        LOG.info("Removing temporary folder: {}".format(tmp_path))
     else:
-        LOG.warning("tmp folder %s does not exist", tmp_path)
+        LOG.warning("tmp folder {} does not exist".format(tmp_path))
     
-    mem_use(label="after removing temporary folder")
+    #mem_use(label="after removing temporary folder")
     return
 
 
