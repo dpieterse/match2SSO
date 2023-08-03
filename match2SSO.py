@@ -111,11 +111,9 @@ CENTRAL_RA_KEYWORD = settingsFile.keyRACentre
 CENTRAL_DEC_KEYWORD = settingsFile.keyDecCentre
 LIMMAG_KEYWORD = settingsFile.keyLimmag
 
-# Load switches
-REDOWNLOAD_DATABASES = bool(settingsFile.redownload_databases)
+# Load switches from settings file
 INCLUDE_COMETS = bool(settingsFile.include_comets)
 KEEP_TMP = bool(settingsFile.keep_tmp)
-OVERWRITE_FILES = bool(settingsFile.overwrite_files)
 TIME_FUNCTIONS = bool(settingsFile.time_functions)
 
 
@@ -125,7 +123,7 @@ TIME_FUNCTIONS = bool(settingsFile.time_functions)
 
 
 def run_match2SSO(tel, mode, cat2process, date2process, list2process,
-                  logname):
+                  logname, redownload, overwrite):
     """
     Run match2SSO on the input catalogue(s)/date. match2SSO can be run in
     different mode / date2process / cat2process / list2process combinations.
@@ -157,6 +155,13 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     logname: string
         Path to and name of the log file in which comments about the run are
         stored.
+    redownload: boolean
+        Boolean to indicate whether the asteroid (and comet) databases should be
+        redownloaded. Alternatively the most recently downloaded databases will
+        be used. Parameter is not relevant for the night mode.
+    overwrite: boolean
+        Boolean to indicate whether files will be remade and overwritten.
+        Alternatively existing files will be  used.
     """
     t_glob = time.time()
     
@@ -166,9 +171,11 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
         date2process = date2process.replace(".", "").replace(
             "/", "").replace("-", "")
     
-    # Set global variable for JPL ephemeris file path
+    # Set global variables
     global FILE_JPLEPH
     FILE_JPLEPH = get_par(settingsFile.JPL_ephemerisFile, tel)
+    global OVERWRITE_FILES
+    OVERWRITE_FILES = overwrite
     
     # Perform checks on input parameter combinations and setting file
     # parameters
@@ -199,7 +206,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     
     # Run match2SSO
     if mode == "day":
-        day_mode(night_start, tel, tmp_folder)
+        day_mode(night_start, tel, tmp_folder, redownload)
         
     elif mode == "night":
         night_mode(cat2process, night_start, tel, tmp_folder, submission_folder)
@@ -218,7 +225,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
 # In[ ]:
 
 
-def day_mode(night_start, tel, tmp_folder):
+def day_mode(night_start, tel, tmp_folder, redownload_db):
     
     """
     Run match2SSO in day mode to prepare for the night mode. The day mode
@@ -247,6 +254,10 @@ def day_mode(night_start, tel, tmp_folder):
     tmp_folder: string
         Name of the folder where the known objects databases will be downloaded
         to and in which the run directory will be placed.
+    redownload_db: boolean
+        Boolean to indicate whether the asteroid (and comet) databases should be
+        redownloaded. Alternatively the most recently downloaded databases will
+        be used.
     """
     
     LOG.info("Running the day mode.")
@@ -286,8 +297,7 @@ def day_mode(night_start, tel, tmp_folder):
     
     # Download and integrate known object databases
     midnight = night_start + timedelta(days=0.5)
-    create_known_objects_database(midnight, rundir, tmp_folder,
-                                  REDOWNLOAD_DATABASES)
+    create_known_objects_database(midnight, rundir, tmp_folder, redownload_db)
     
     # Create CHK files that astcheck needs in advance, to allow parallelisation
     # in the night mode
@@ -387,7 +397,7 @@ def night_mode(cat_name, night_start, tel, tmp_folder, submission_folder):
 
 
 def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
-              tmp_folder, submission_folder):
+              tmp_folder, submission_folder, redownload_db):
     
     """
     The historic mode does the entire processing of match2SSO, including the
@@ -405,8 +415,8 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
       4) Creates symbolic links to the used databases and the observatory codes
          list in the run directory.
     The asteroid and comet databases used for this are only downloaded once per
-    historic mode run (and only if REDOWNLOAD_DATABASES is True). For the
-    remaining files (or if REDOWNLOAD_DATABASES is False), the most recently
+    historic mode run (and only if [redownload_db] is True). For the
+    remaining files (or if [redownload_db] is False), the most recently
     downloaded versions are used.
     
     For all transient catalogues, the code then:
@@ -441,7 +451,10 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
         directory.
     submission_folder: string
         Name of the folder in which the MPC submission files will be stored.
-    
+    redownload_db: boolean
+        Boolean to indicate whether the asteroid (and comet) databases should be
+        redownloaded. Alternatively the most recently downloaded databases will
+        be used.
     Beware that exactly two of the variables (cat_name, date, catlist) need to
     be None!
     """
@@ -473,8 +486,8 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
                                                              "%Y%m%d %H%M%S"))
             if first_night:
                 match_catalogues_single_night(
-                    catalogues2process_1night, noon, REDOWNLOAD_DATABASES,
-                    tmp_folder, submission_folder)
+                    catalogues2process_1night, noon, redownload_db, tmp_folder,
+                    submission_folder)
             else:
                 match_catalogues_single_night(
                     catalogues2process_1night, noon, False, tmp_folder,
@@ -497,7 +510,7 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
             return
     
     match_catalogues_single_night(
-        catalogues2process, night_start, REDOWNLOAD_DATABASES, tmp_folder,
+        catalogues2process, night_start, redownload_db, tmp_folder,
         submission_folder)
     
     return
@@ -2675,6 +2688,21 @@ def mem_use(label=""):
 # In[ ]:
 
 
+# from https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+# In[ ]:
+
+
 # ZOGY function
 def get_par(par, tel):
     
@@ -3277,8 +3305,19 @@ if __name__ == "__main__":
                         help="Name of log file to save. Requires full path; "
                         "default of None will not create a log file")
     
+    PARSER.add_argument("--redownload", type=str2bool, default=True,
+                        help="Boolean to indicate whether the asteroid (and "
+                        "comet) databases should be redownloaded. Alternatively"
+                        " the most recently downloaded databases will be used.")
+    
+    PARSER.add_argument("--overwrite", type=str2bool, default=False,
+                        help="Boolean to indicate whether files will be remade "
+                        "and overwritten. Alternatively existing files will be "
+                        "used.")
+    
     ARGS = PARSER.parse_args()
     run_match2SSO(tel=ARGS.telescope, mode=ARGS.mode, cat2process=ARGS.catalog,
                   date2process=ARGS.date, list2process=ARGS.catlist,
-                  logname=ARGS.logname)
+                  logname=ARGS.logname, redownload=ARGS.redownload,
+                  overwrite=ARGS.overwrite)
 

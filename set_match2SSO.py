@@ -5,20 +5,20 @@ import os
 #==============================================================================
 runFolderBase = {}; runFolder = {}; inputFolder={}; tmpFolder={}; logFolder={};
 submissionFolder={}
-for tel in ['ML1']:
-    runFolderBase[tel] = '/idia/projects/meerlicht'
-    runFolder[tel] = '{}/{}'.format(runFolderBase[tel], tel)
-    inputFolder[tel] = '{}/red/'.format(runFolder[tel])
-    tmpFolder[tel] = '{}/tmp/match2SSO/'.format(runFolder[tel])
-    logFolder[tel] = '{}/log/match2SSO/'.format(runFolder[tel])
-    submissionFolder[tel] = '{}/mpc/'.format(runFolder[tel])
-for tel in ['BG2', 'BG3', 'BG4']:
-    runFolderBase[tel] = '/home/sa_105685508700717199458'
-    runFolder[tel] = '{}/Slurm/{}'.format(runFolderBase[tel], tel)
-    inputFolder[tel] = 'gs://blackgem-red/{}/'.format(tel)
-    tmpFolder[tel] = '{}/tmp/match2SSO/'.format(runFolder[tel])
+for tel in ["ML1"]:
+    runFolderBase[tel] = "/idia/projects/meerlicht"
+    runFolder[tel] = "{}/{}".format(runFolderBase[tel], tel)
+    inputFolder[tel] = "{}/red/".format(runFolder[tel])
+    tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
+    logFolder[tel] = "{}/log/match2SSO/".format(runFolder[tel])
+    submissionFolder[tel] = "{}/mpc/".format(runFolder[tel])
+for tel in ["BG2", "BG3", "BG4"]:
+    runFolderBase[tel] = "/home/sa_105685508700717199458"
+    runFolder[tel] = "{}/Slurm/{}".format(runFolderBase[tel], tel)
+    inputFolder[tel] = "gs://blackgem-red/{}/".format(tel)
+    tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
     logFolder[tel] = None
-    submissionFolder[tel] = '{}/mpc/{}/'.format(runFolderBase[tel], tel)
+    submissionFolder[tel] = "{}/mpc/{}/".format(runFolderBase[tel], tel)
 
 
 #==============================================================================
@@ -38,7 +38,7 @@ obsCodesFile = "/Software/match2SSO/ObsCodes.html"
 # integrate MPCORB to the observation epoch
 #==============================================================================
 JPL_ephemerisFile = {}
-for tel in ['ML1', 'BG2', 'BG3', 'BG4']:
+for tel in ["ML1", "BG2", "BG3", "BG4"]:
     JPL_ephemerisFile[tel] = ("{}/CalFiles/linux_m13000p17000.441"
                               .format(runFolderBase[tel])
 
@@ -130,20 +130,13 @@ submissionHeader = {
 #==============================================================================
 # Switches
 #==============================================================================
-redownload_databases = True
 include_comets = False
 keep_tmp = False
-overwrite_files = False
 time_functions = False
 
 """
 Description of switches:
 ------------------------
-redownload_databases: string
-    Boolean indicating whether the asteroid and comet databases will need to be
-    redownloaded when making the known objects database. Alternatively, the
-    most recently downloaded version of the databases are used.
-
 include_comets:
     Boolean indicating whether comets should be included in the known objects
     database. There have been issues with matching to comets with large orbital
@@ -153,11 +146,6 @@ include_comets:
 keep_tmp:
     Boolean indicating whether the temporary files made during the processing
     should be kept or removed at the end of the processing.
-
-overwrite_files:
-    Boolean indicating whether files are allowed to be overwritten. If False
-    and the SSO catalogue and MPC submission files both already exist, the
-    observation will be skipped.
 
 time_functions:
     Boolean indicating whether functions need to be (wall-)timed.
