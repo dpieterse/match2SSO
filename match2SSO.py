@@ -504,7 +504,8 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
     elif date:
         LOG.info("Running historic mode on night {}".format(date))
         catalogues2process = get_transient_filenames(
-            input_folder, night_start, night_start+timedelta(days=1), tel)
+            input_folder, night_start,
+            night_start+timedelta(days=1)-timedelta(minutes=1), tel)
         
         if not catalogues2process:
             LOG.critical("No (light) transient catalogues exist for night {}"
@@ -2015,18 +2016,27 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
     minimal_date = minimal_date.astimezone(local_timezone)
     maximal_date = maximal_date.astimezone(local_timezone)
     
-    # Select the transient files by observation date
-    year, month, day = None, None, None
+    # Select the transient directories from observation date
     search_path = input_folder
     if minimal_date.year == maximal_date.year:
-        year = "%d/"%(minimal_date.year)
-        search_path += year
+        yeardir = "%d/"%(minimal_date.year)
+        search_path += yeardir
         if minimal_date.month == maximal_date.month:
-            month = "{:0>2}/".format(minimal_date.month)
-            search_path += month
-            if minimal_date.day == maximal_date.day:
-                day = "{:0>2}/".format(maximal_date.day)
-                search_path += day
+            monthdir = "{:0>2}/".format(minimal_date.month)
+            search_path += monthdir
+            
+            # Get observing date (defined to start at noon and end at noon the
+            # next day)
+            minday = minimal_date.day
+            if minday.hour < 12.:
+                minday -= 1
+            maxday = maximal_date.day
+            if maxday.hour < 12.:
+                maxday -= 1
+            
+            if minday == maxday:
+                daydir = "{:0>2}/".format(maxday)
+                search_path += daydir
     
     # Infer folder depth to use
     if 'gs://' in input_folder:
