@@ -132,7 +132,7 @@ submissionHeader = {
 #==============================================================================
 include_comets = False
 keep_tmp = False
-time_functions = False
+time_functions = True
 
 """
 Description of switches:

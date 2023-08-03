@@ -2654,7 +2654,7 @@ def log_timing_memory(t_in, label=""):
     """Function to report the time and memory spent in a function."""
     
     LOG.info("wall-time spent in %s: %.3f s", label, time.time()-t_in)
-    mem_use(label=label)
+    #mem_use(label=label)
     
     return
 
