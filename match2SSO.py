@@ -271,17 +271,17 @@ def day_mode(night_start, tel, tmp_folder, redownload_db):
     
     # Delete the temporary products made in the night mode of the previous
     # night.
-    if not KEEP_TMP:
-        night_previous = (night_start - timedelta(days=1)).strftime("%Y%m%d")
-        rundir_previous = "{}{}/".format(tmp_folder, night_previous)
-        
-        if isfile("{}MPCORB.DAT".format(rundir_previous)):
-            asteroid_database = os.readlink("{}MPCORB.DAT"
-                                            .format(rundir_previous))
-            if "epoch" in asteroid_database:
-                os.remove(asteroid_database)
-                LOG.info("Removed {}".format(asteroid_database))
-        remove_tmp_folder(rundir_previous)
+    #if not KEEP_TMP:
+    #    night_previous = (night_start - timedelta(days=1)).strftime("%Y%m%d")
+    #    rundir_previous = "{}{}/".format(tmp_folder, night_previous)
+    #    
+    #    if isfile("{}MPCORB.DAT".format(rundir_previous)):
+    #        asteroid_database = os.readlink("{}MPCORB.DAT"
+    #                                        .format(rundir_previous))
+    #        if "epoch" in asteroid_database:
+    #            os.remove(asteroid_database)
+    #            LOG.info("Removed {}".format(asteroid_database))
+    #    remove_tmp_folder(rundir_previous)
     
     # Create a run directory corresponding to the observation night
     rundir = ("{}{}/".format(tmp_folder, night_start.strftime("%Y%m%d")))
