@@ -3,23 +3,44 @@ import os
 #==============================================================================
 # Directory structure
 #==============================================================================
-runFolderBase = os.environ['DATAHOME']
-
-runFolder = {}; inputFolder={}; databaseFolder={}; logFolder={}; submissionFolder={}
-for tel in ['ML1', 'BG2', 'BG3', 'BG4']:
-    runFolder[tel] = '{}/{}'.format(runFolderBase, tel)
+runFolderBase = {}; runFolder = {}; inputFolder={}; tmpFolder={}; logFolder={};
+submissionFolder={}
+for tel in ['ML1']:
+    runFolderBase[tel] = '/idia/projects/meerlicht'
+    runFolder[tel] = '{}/{}'.format(runFolderBase[tel], tel)
     inputFolder[tel] = '{}/red/'.format(runFolder[tel])
-    databaseFolder[tel] = '{}/tmp/match2SSO/'.format(runFolder[tel])
+    tmpFolder[tel] = '{}/tmp/match2SSO/'.format(runFolder[tel])
     logFolder[tel] = '{}/log/match2SSO/'.format(runFolder[tel])
     submissionFolder[tel] = '{}/mpc/'.format(runFolder[tel])
-
-softwareFolder = "/Software/match2SSO/"
+for tel in ['BG2', 'BG3', 'BG4']:
+    runFolderBase[tel] = '/home/sa_105685508700717199458'
+    runFolder[tel] = '{}/Slurm/{}'.format(runFolderBase[tel], tel)
+    inputFolder[tel] = 'gs://blackgem-red/{}/'.format(tel)
+    tmpFolder[tel] = '{}/tmp/match2SSO/'.format(runFolder[tel])
+    logFolder[tel] = None
+    submissionFolder[tel] = '{}/mpc/{}/'.format(runFolderBase[tel], tel)
 
 
 #==============================================================================
 # Text file listing the software versions used
 #==============================================================================
 versionsFile = "/Software/versions.txt"
+
+
+#==============================================================================
+# File listing the Minor Planet Center Observatory Codes
+#==============================================================================
+obsCodesFile = "/Software/match2SSO/ObsCodes.html"
+
+
+#==============================================================================
+# JPL DE ephemeris file (describing planetary and lunar ephemerides) needed to
+# integrate MPCORB to the observation epoch
+#==============================================================================
+JPL_ephemerisFile = {}
+for tel in ['ML1', 'BG2', 'BG3', 'BG4']:
+    JPL_ephemerisFile[tel] = ("{}/CalFiles/linux_m13000p17000.441"
+                              .format(runFolderBase[tel])
 
 
 #==============================================================================
@@ -68,16 +89,9 @@ URL_cometDatabase = "https://ssd.jpl.nasa.gov/dat/ELEMENTS.COMET"
 
 # Maximal uncertainty parameter allowed for the asteroids that are used for the
 # matching (see https://www.minorplanetcenter.net/iau/info/UValue.html). Allowed
-# values for the maximum uncertainty parameter are 0 to 9 or None. If None, all 
+# values for the maximum uncertainty parameter are 0 to 9 or None. If None, all
 # objects will be taken into account, including those with letter uncertainties.
 maxUncertainty = 2
-
-
-#==============================================================================
-# JPL DE ephemeris file (describing planetary and lunar ephemerides) needed to
-# integrate MPCORB to the observation epoch
-#==============================================================================
-JPL_ephemerisFile = "{}linux_m13000p17000.441".format(softwareFolder)
 
 
 #==============================================================================
@@ -89,17 +103,28 @@ CPPmacro2version = {"202002L":"C++20", "201703L":"C++17", "201402L":"C++14",
 
 
 #==============================================================================
-# Default header for the MPC submission file
+# Header for the MPC submission file (listed per MPC observatory code)
 #==============================================================================
-submissionHeader = "".join([
-    "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
-    "CON [p.groot@astro.ru.nl]\n",
-    "OBS P. J. Groot, S. L. D. Bloemen, L. Townsend\n",
-    "MEA P. M. Vreeswijk, D. L. A. Pieterse, K. Paterson\n",
-    "TEL 0.65-m reflector + CCD\n",
-    "NET Gaia-DR2\n",
-    "AC2 mpc-response@blackgem.org\n"
-    ])
+submissionHeader = {
+    "L66": "".join([
+        "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
+        "CON [p.groot@astro.ru.nl]\n",
+        "OBS P. J. Groot, S. L. D. Bloemen, L. Townsend\n",
+        "MEA P. M. Vreeswijk, D. L. A. Pieterse, K. Paterson\n",
+        "TEL 0.65-m reflector + CCD\n",
+        "NET Gaia-DR2\n",
+        "AC2 mpc-response@blackgem.org\n"
+        ]),
+    "809": "".join([
+        "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
+        "CON [p.groot@astro.ru.nl]\n",
+        "OBS P. J. Groot, S. L. D. Bloemen\n",
+        "MEA P. M. Vreeswijk, D. L. A. Pieterse\n",
+        "TEL 0.65-m reflector + CCD\n",
+        "NET Gaia-DR3\n",
+        "AC2 mpc-response@blackgem.org\n"
+        ])
+    }
 
 
 #==============================================================================
