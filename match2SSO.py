@@ -889,7 +889,7 @@ def download_database(sso_type, redownload_db, tmp_folder):
         LOG.critical(error_string)
         raise ValueError(error_string)
     
-    #Determine whether database needs to be downloaded
+    # Determine whether database needs to be downloaded
     existing_databases = list_files("{}{}DB_".format(tmp_folder, sso_type),
                                     end_str=".dat")
     existing_unintegrated_databases = [DB for DB in existing_databases                                        if "epoch" not in DB]
@@ -897,7 +897,7 @@ def download_database(sso_type, redownload_db, tmp_folder):
     if not redownload_db and len(existing_databases) > 0:
         download = False
         
-    #Download database if desired and get database version
+    # Download database if desired and get database version
     if download:
         LOG.info("Downloading {} database...".format(sso_type))
         database_version = datetime.utcnow().strftime("%Y%m%dT%H%M")
@@ -907,20 +907,20 @@ def download_database(sso_type, redownload_db, tmp_folder):
         open(database_name, "wb").write(req.content)
         LOG.info("{} database version: {}".format(sso_type, database_version))
         
-        #Remove asteroids with large orbital uncertainties from database
+        # Remove asteroids with large orbital uncertainties from database
         if sso_type == "asteroid":
             select_asteroids_on_uncertainty(database_name)
             
-        if not KEEP_TMP and len(existing_databases) > 0:
-            LOG.info("Removing older {} database versions.".format(sso_type))
-            for old_database in existing_databases:
-                os.remove(old_database)
-                LOG.info("Removed {}.".format(old_database))
+        #if not KEEP_TMP and len(existing_databases) > 0:
+        #    LOG.info("Removing older {} database versions.".format(sso_type))
+        #    for old_database in existing_databases:
+        #        os.remove(old_database)
+        #        LOG.info("Removed {}.".format(old_database))
     else:
-        #Retrieve most recent (unintegrated) database version. If there is no
-        #unintegrated database, retrieve the most recent integrated one. Empty
-        #databases (created when INCLUDE_COMETS = False) are not taken into
-        #account, as these are in a different folder.
+        # Retrieve most recent (unintegrated) database version. If there is no
+        # unintegrated database, retrieve the most recent integrated one. Empty
+        # databases (created when INCLUDE_COMETS = False) are not taken into
+        # account, as these are in a different folder.
         databases_sorted = sorted(existing_unintegrated_databases)
         if not databases_sorted:
             databases_sorted = sorted(existing_databases)
