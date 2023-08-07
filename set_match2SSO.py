@@ -40,19 +40,19 @@ time_functions = True
 runFolderBase = {}; runFolder = {}; inputFolder={}; tmpFolder={}; logFolder={};
 MPCreportFolder={}
 for tel in ["ML1"]:
-    runFolderBase[tel] = "/idia/projects/meerlicht"
-    runFolder[tel] = "{}/{}".format(runFolderBase[tel], tel)
+    runFolderBase["ML"] = "/idia/projects/meerlicht"
+    runFolder[tel] = "{}/{}".format(runFolderBase["ML"], tel)
     inputFolder[tel] = "{}/red/".format(runFolder[tel])
     tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
     logFolder[tel] = "{}/log/match2SSO/".format(runFolder[tel])
     MPCreportFolder[tel] = "{}/mpc/".format(runFolder[tel])
 for tel in ["BG2", "BG3", "BG4"]:
-    runFolderBase[tel] = "/home/sa_105685508700717199458"
-    runFolder[tel] = "{}/Slurm/{}".format(runFolderBase[tel], tel)
+    runFolderBase["BG"] = "/home/sa_105685508700717199458"
+    runFolder[tel] = "{}/Slurm/{}".format(runFolderBase["BG"], tel)
     inputFolder[tel] = "gs://blackgem-red/{}/".format(tel)
     tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
     logFolder[tel] = None
-    MPCreportFolder[tel] = "{}/mpc/{}/".format(runFolderBase[tel], tel)
+    MPCreportFolder[tel] = "{}/mpc/{}/".format(runFolderBase["BG"], tel)
 
 
 # Text file listing the software versions used
@@ -66,7 +66,7 @@ obsCodesFile = "/Software/match2SSO/ObsCodes.html"
 # JPL DE ephemeris file (describing planetary and lunar ephemerides) needed to
 # integrate MPCORB to the observation epoch
 JPL_ephemerisFile = {}
-for tel in ["ML1", "BG2", "BG3", "BG4"]:
+for tel in ["ML", "BG"]:
     JPL_ephemerisFile[tel] = ("{}/CalFiles/linux_m13000p17000.441"
                               .format(runFolderBase[tel]))
 
