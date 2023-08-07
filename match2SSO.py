@@ -95,23 +95,6 @@ LOG = logging.getLogger()
 # In[ ]:
 
 
-# Set global constants
-
-# Relevant data columns
-NUMBER_COLUMN = settingsFile.colNumber
-RA_COLUMN = settingsFile.colRA
-DEC_COLUMN = settingsFile.colDec
-MAG_COLUMN = settingsFile.colMag
-SNR_COLUMN = settingsFile.colSNR
-
-# Relevant header keywords of detection catalogue
-DUMMY_KEYWORD = settingsFile.keyDummy
-DATE_KEYWORD = settingsFile.keyDate
-MPC_CODE_KEYWORD = settingsFile.keyMPCcode
-CENTRAL_RA_KEYWORD = settingsFile.keyRACentre
-CENTRAL_DEC_KEYWORD = settingsFile.keyDecCentre
-LIMMAG_KEYWORD = settingsFile.keyLimmag
-
 # Load switches from settings file
 INCLUDE_COMETS = bool(settingsFile.include_comets)
 KEEP_TMP = bool(settingsFile.keep_tmp)
@@ -144,7 +127,8 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     Parameters:
     -----------
     tel: string
-        Abbreviated telescope name. Can be either ML1, BG2, BG3 or BG4.
+        Abbreviated telescope name. Used in the settings file for 
+        telescope-dependent variables.
     mode: string
         Mode in which match2SSO is run. This can be 'day', 'night' or 
         'historic'.
@@ -178,8 +162,10 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
             "/", "").replace("-", "")
     
     # Set global variables
+    global TEL
+    TEL = tel
     global FILE_JPLEPH
-    FILE_JPLEPH = get_par(settingsFile.JPL_ephemerisFile, tel)
+    FILE_JPLEPH = get_par(settingsFile.JPL_ephemerisFile, TEL)
     global OVERWRITE_FILES
     OVERWRITE_FILES = overwrite
     
@@ -190,7 +176,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
         return
     if not check_settings():
         return
-    folders = load_and_check_folders(tel)
+    folders = load_and_check_folders()
     if not folders: # Empty tuple
         return
     input_folder, tmp_folder, log_folder, report_folder = folders
@@ -203,22 +189,22 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     # Get local noon corresponding to the night start in case date2process or
     # cat2process are specified.
     night_start = None
-    local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, tel))
+    local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, TEL))
     if cat2process:
-        night_start = get_night_start_from_date(cat2process, tel)
+        night_start = get_night_start_from_date(cat2process)
     elif date2process:
         night_start = local_timezone.localize(datetime.strptime(" ".join([
             date2process, "120000"]), "%Y%m%d %H%M%S"))
     
     # Run match2SSO
     if mode == "day":
-        day_mode(night_start, tel, tmp_folder, redownload)
+        day_mode(night_start, tmp_folder, redownload)
         
     elif mode == "night":
-        night_mode(cat2process, night_start, tel, tmp_folder, report_folder)
+        night_mode(cat2process, night_start, tmp_folder, report_folder)
     
     elif mode == "historic" or "hist":
-        hist_mode(cat2process, date2process, list2process, night_start, tel,
+        hist_mode(cat2process, date2process, list2process, night_start,
                   input_folder, tmp_folder, report_folder)
     
     LOG.info("Finished running match2SSO.")
@@ -231,7 +217,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
 # In[ ]:
 
 
-def day_mode(night_start, tel, tmp_folder, redownload_db):
+def day_mode(night_start, tmp_folder, redownload_db):
     
     """
     Run match2SSO in day mode to prepare for the night mode. The day mode
@@ -255,8 +241,6 @@ def day_mode(night_start, tel, tmp_folder, redownload_db):
     -----------
     night_start: datetime object (incl timezone) or None
         Noon corresponding to the start of the observation night.
-    tel: string
-        Abbreviated telescope name. Can be either ML1, BG2, BG3 or BG4.
     tmp_folder: string
         Name of the folder where the known objects databases will be downloaded
         to and in which the run directory will be placed.
@@ -270,7 +254,7 @@ def day_mode(night_start, tel, tmp_folder, redownload_db):
     
     # Use the upcoming local night if no observation night is specified
     if not night_start:
-        local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, tel))
+        local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, TEL))
         night_start = (datetime.now(local_timezone)).strftime("%Y%m%d 120000")
         night_start = local_timezone.localize(datetime.strptime(
             night_start, "%Y%m%d %H%M%S"))
@@ -298,7 +282,7 @@ def day_mode(night_start, tel, tmp_folder, redownload_db):
     # Create symbolic link to the observatory codes list
     if not isfile("{}ObsCodes.html".format(rundir)):
         LOG.info("Creating symbolic link to ObsCodes.html")
-        os.symlink(settingsFile.obsCodesFile,
+        os.symlink(get_par(settingsFile.obsCodesFile, TEL),
                    "{}ObsCodes.html".format(rundir))
     
     # Download and integrate known object databases
@@ -323,7 +307,7 @@ def day_mode(night_start, tel, tmp_folder, redownload_db):
 # In[ ]:
 
 
-def night_mode(cat_name, night_start, tel, tmp_folder, report_folder):
+def night_mode(cat_name, night_start, tmp_folder, report_folder):
     
     """
     Run match2SSO on a single transient catalogue. The day mode should have been
@@ -345,8 +329,6 @@ def night_mode(cat_name, night_start, tel, tmp_folder, report_folder):
         Path to and name of the transient catalogue that is to be processed.
     night_start: datetime object (with timezone)
         Noon corresponding to the start of the observation night.
-    tel: string
-        Abbreviated telescope name. Can be either ML1, BG2, BG3 or BG4.
     tmp_folder: string
         Name of the folder that contains the known objects databases and the run
         directory.
@@ -368,7 +350,7 @@ def night_mode(cat_name, night_start, tel, tmp_folder, report_folder):
         return
     
     # Check for CHK files
-    night_start_utc = get_night_start_from_date(cat_name, tel, "utc")
+    night_start_utc = get_night_start_from_date(cat_name, "utc")
     night_end_utc = night_start_utc + timedelta(days=1)
     night_start_utc = night_start_utc.strftime("%Y%m%d")
     night_end_utc = night_end_utc.strftime("%Y%m%d")
@@ -403,8 +385,8 @@ def night_mode(cat_name, night_start, tel, tmp_folder, report_folder):
 # In[ ]:
 
 
-def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
-              tmp_folder, report_folder, redownload_db):
+def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
+              report_folder, redownload_db):
     
     """
     The historic mode does the entire processing of match2SSO, including the
@@ -448,8 +430,6 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
         of transient catalogues (one per line) that need to be processed.
     night_start: datetime object (with timezone) or None
         Noon corresponding to the start of the observation night.
-    tel: string
-        Abbreviated telescope name. Can be either ML1, BG2, BG3 or BG4.
     input_folder: string
         Folder which contains the yyyy/mm/dd/ folders in which the transient
         catalogues are stored.
@@ -476,7 +456,7 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
         
         # Order by observation date (noon that equals the start of the
         # observation day)
-        noons = [get_night_start_from_date(catname, tel).strftime(
+        noons = [get_night_start_from_date(catname).strftime(
             "%Y%m%d %H%M%S") for catname in catalogues2process]
         
         # Process files per night
@@ -489,7 +469,7 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
                 catalogues2process)[night_index]
             
             local_timezone = timezone(get_par(settingsFile.timeZoneTelescope,
-                                              tel))
+                                              TEL))
             noon = local_timezone.localize(datetime.strptime(noon,
                                                              "%Y%m%d %H%M%S"))
             if first_night:
@@ -511,7 +491,7 @@ def hist_mode(cat_name, date, catlist, night_start, tel, input_folder,
         LOG.info("Running historic mode on night {}".format(date))
         catalogues2process = get_transient_filenames(
             input_folder, night_start,
-            night_start+timedelta(days=1)-timedelta(minutes=1), tel)
+            night_start+timedelta(days=1)-timedelta(minutes=1))
         
         if not catalogues2process:
             LOG.critical("No (light) transient catalogues exist for night {}"
@@ -725,7 +705,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
         # Make symbolic link to observatory codes list if it doesn't exist yet
         if not isfile("{}ObsCodes.html".format(rundir)):
             LOG.info("Creating symbolic link to ObsCodes.html")
-            os.symlink(settingsFile.obsCodesFile,
+            os.symlink(get_par(settingsFile.obsCodesFile, TEL),
                        "{}ObsCodes.html".format(rundir))
     
     # Make predictions catalogue
@@ -1044,7 +1024,8 @@ def select_asteroids_on_uncertainty(asteroid_database):
     """
     #mem_use(label="at start of select_asteroids_on_uncertainty")
     
-    if settingsFile.maxUncertainty is None:
+    u_max = get_par(settingsFile.maxUncertainty, TEL)
+    if u_max is None:
         LOG.info("All known solar system bodies are used in the matching, "
                  "irrespective of their uncertainty parameter.")
         return
@@ -1092,15 +1073,14 @@ def select_asteroids_on_uncertainty(asteroid_database):
             #which orbits are determined reasonably well.
             uncertainty = line[105]
             if uncertainty.isdigit():
-                if float(uncertainty) <= settingsFile.maxUncertainty:
+                if float(uncertainty) <= u_max:
                     asteroid_database_content_new.write(line)
                     number_asteroids_post_selection += 1
     
     LOG.info("{} out of {} asteroids have U <= {}".format(
-        number_asteroids_post_selection, number_asteroids_pre_selection,
-        settingsFile.maxUncertainty))
+        number_asteroids_post_selection, number_asteroids_pre_selection, u_max))
     LOG.info("Asteroid database now only includes sources with U <= {}"
-             .format(settingsFile.maxUncertainty))
+             .format(u_max))
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="select_asteroids_on_uncertainty")
     
@@ -1229,17 +1209,21 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
     # Open header of transient catalogue
     with fits.open(transient_cat) as hdu:
         hdr = hdu[1].header
+    date_keyword = get_par(settingsFile.keyDate, TEL)
+    central_ra_keyword = get_par(settingsFile.keyRACentre, TEL)
+    central_dec_keyword = get_par(settingsFile.keyDecCentre, TEL)
+    limmag_keyword = get_par(settingsFile.keyLimmag, TEL)
     
     # Get the observation date (isot format) and central field coordinates (in
     # deg) from the header
-    date = hdr[DATE_KEYWORD]
-    if CENTRAL_RA_KEYWORD in hdr.keys() and CENTRAL_DEC_KEYWORD in hdr.keys():
-        ra_field = hdr[CENTRAL_RA_KEYWORD]
-        dec_field = hdr[CENTRAL_DEC_KEYWORD]
+    date = hdr[date_keyword]
+    if central_ra_keyword in hdr.keys() and central_dec_keyword in hdr.keys():
+        ra_field = hdr[central_ra_keyword]
+        dec_field = hdr[central_dec_keyword]
     else:
         ra_field = hdr["RA"]
         dec_field = hdr["DEC"]
-    limmag = hdr[LIMMAG_KEYWORD]
+    limmag = hdr[limmag_keyword]
     
     # Create temporary output file for astcheck results
     output_file = "{}{}".format(rundir, os.path.basename(transient_cat).replace(
@@ -1247,17 +1231,18 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
     output_file_content = open(output_file, "w")
     
     if is_FOV_circle:
-        field_radius = 3600.*settingsFile.FOV_width/2.
+        field_radius = 3600.*get_par(settingsFile.FOV_width, TEL)/2.
     else:
         #Square FOV. Use the half diagonal of the FOV as the radius.
-        field_radius = 3600.*sqrt(2)*settingsFile.FOV_width/2.
+        field_radius = 3600.*sqrt(2)*get_par(settingsFile.FOV_width, TEL)/2.
     
     # Run astcheck from folder containing .sof-file
-    subprocess.call(["astcheck", "-c", str(date), str(ra_field), str(dec_field),
-                     str(mpc_code), "-r{}".format(field_radius), "-h",
-                     "-m{}".format(settingsFile.limitingMagnitude),
-                     "-M{}".format(settingsFile.maximalNumberOfAsteroids)],
-                    stdout=output_file_content, cwd=rundir)
+    subprocess.call([
+        "astcheck", "-c", str(date), str(ra_field), str(dec_field),
+        str(mpc_code), "-r{}".format(field_radius), "-h",
+        "-m{}".format(get_par(settingsFile.limitingMagnitude, TEL)),
+        "-M{}".format(get_par(settingsFile.maximalNumberOfAsteroids, TEL))],
+        stdout=output_file_content, cwd=rundir)
     output_file_content.close()
     
     # Read in astcheck output
@@ -1301,13 +1286,14 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
         LOG.info("Removed {}".format(output_file))
     
     # In case of a square FOV, disregard SSOs outside the FOV
+    FOV_width = get_par(settingsFile.FOV_width, TEL)
     if not is_FOV_circle and len(output_table)>0:
         center = SkyCoord(ra_field, dec_field, unit="deg", frame="icrs")
         sources = SkyCoord(output_table["RA_SSO"],
                            output_table["DEC_SSO"], unit="deg", frame="icrs")
         dra, ddec = center.spherical_offsets_to(sources)
-        mask_dist = ((abs(dra.deg) <= settingsFile.FOV_width/2.) &
-                     (abs(ddec.deg) <= settingsFile.FOV_width/2.))
+        mask_dist = ((abs(dra.deg) <= FOV_width/2.) &
+                     (abs(ddec.deg) <= FOV_width/2.))
         output_table = output_table[mask_dist]
     
     # Create header for predicted asteroids in FOV
@@ -1334,7 +1320,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
 
 
 def run_astcheck(mpcformat_file, rundir, output_file,
-                 matching_radius=settingsFile.matchingRadius):
+                 matching_radius=get_par(settingsFile.matchingRadius, TEL)):
     """
     Run astcheck on the input transient catalogue to find matches between
     transient detections and known solar system objects. Per detection, all
@@ -1373,11 +1359,11 @@ def run_astcheck(mpcformat_file, rundir, output_file,
     output_file_content = open(output_file, "w")
     
     # Run astcheck from folder containing .sof-file
-    subprocess.call(["astcheck", mpcformat_file, "-h",
-                     "-r{}".format(matching_radius),
-                     "-m{}".format(settingsFile.limitingMagnitude),
-                     "-M{}".format(settingsFile.maximalNumberOfAsteroids)],
-                    stdout=output_file_content, cwd=rundir)
+    subprocess.call([
+        "astcheck", mpcformat_file, "-h", "-r{}".format(matching_radius),
+        "-m{}".format(get_par(settingsFile.limitingMagnitude, TEL)),
+        "-M{}".format(get_par(settingsFile.maximalNumberOfAsteroids, TEL))],
+        stdout=output_file_content, cwd=rundir)
     output_file_content.close()
     
     LOG.info("Matches saved to {}.".format(output_file))
@@ -1512,9 +1498,9 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     
     # Add matching radius and maximum orbital uncertainty parameter to header
     if incl_detections:
-        header["RADIUS"] = (float(settingsFile.matchingRadius),
+        header["RADIUS"] = (float(get_par(settingsFile.matchingRadius, TEL)),
                             "matching radius in arcsec")
-    header["U-MAX"] = (settingsFile.maxUncertainty,
+    header["U-MAX"] = (get_par(settingsFile.maxUncertainty, TEL),
                        "maximum orbital uncertainty parameter")
     
     # Add number of (predicted) detections to header
@@ -1598,8 +1584,9 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
                                   len(astcheck_file_content))
     
     # Create table to store match information in
+    number_column = get_par(settingsFile.colNumber, TEL)
     output_columns = {
-        NUMBER_COLUMN:  ["i4", ""],
+        number_column:  ["i4", ""],
         "ID_SSO":       ["12a", ""],
         "DIST_RA_SSO":  ["i2", "arcsec"],
         "DIST_DEC_SSO": ["i2", "arcsec"],
@@ -1747,6 +1734,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     # Open SSO catalogue
     with fits.open(sso_cat) as hdu:
         sso_cat_content = Table(hdu[1].data)
+    number_column = get_par(settingsFile.colNumber, TEL)
     
     # Check SSO catalogue for matches
     if not sso_cat_content:
@@ -1771,7 +1759,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     # For each detection that was matched to a known solar system object,
     # get the packed designation of the matching object and write the detection
     # to the report
-    for match_index in range(len(sso_cat_content[NUMBER_COLUMN])):
+    for match_index in range(len(sso_cat_content[number_column])):
         designation = sso_cat_content["ID_SSO"][match_index].strip()
         
         # Start creating the line of the report corresponding to the detection,
@@ -1797,11 +1785,11 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
         # line of the MPC report corresponding to the detection
         detection_index = np.where(
             np.array(detections_mpcformat["char1to14"])
-            == int(sso_cat_content[NUMBER_COLUMN][match_index]))[0]
+            == int(sso_cat_content[number_column][match_index]))[0]
         if len(detection_index) != 1:
             LOG.error("{} detections found that correspond to transient number"
                       " {}. Should be only one.".format(len(detection_index),
-                      int(sso_cat_content[NUMBER_COLUMN][match_index])))
+                      int(sso_cat_content[number_column][match_index])))
             continue
         detection_index = detection_index[0]
         detection_line = "".join([detection_line, detections_mpcformat[
@@ -1855,7 +1843,7 @@ def create_report_header(reportname, mpc_code, comment=None):
         t_func = time.time()
     
     firstline = "COD {}\n".format(mpc_code)
-    mainheader = get_par(settingsFile.MPCreportHeader, mpc_code)
+    mainheader = get_par(settingsFile.MPCreportHeader, TEL)
     
     # Special cases for which a phrase needs to be included in the ACK line
     # of the header of the MPC report:
@@ -1897,15 +1885,15 @@ def create_report_header(reportname, mpc_code, comment=None):
 # In[ ]:
 
 
-def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
+def get_transient_filenames(input_folder, minimal_date, maximal_date,
                             exclude_flagged=False):
     """
     Function returns a list with the transient file names that were taken
-    between the minimal and maximal specified dates with the specified [tel]
-    telescope. This function works for MeerLICHT and BlackGEM data and runs on
-    the lighter version of the transient catalogues if available. Otherwise it
-    runs on the 'standard' transient catalogues. If exclude_flagged is True, the
-    dummy transient catalogues (which are red-flagged) are excluded.
+    between the minimal and maximal specified dates. This function works for
+    MeerLICHT and BlackGEM data and runs on the lighter version of the transient
+    catalogues if available. Otherwise it runs on the 'standard' transient
+    catalogues. If exclude_flagged is True, the dummy transient catalogues
+    (which are red-flagged) are excluded.
     
     Function assumes a directory and filename structure and hence might not be
     directly applicable to other telescopes than MeerLICHT & BlackGEM.
@@ -1921,8 +1909,6 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
     maximal_date: datetime object, incl time zone
         Maximal observation date of the time block for which the observations
         are selected.
-    tel: string
-        Telescope abbreviation.
     exclude_flagged: boolean
         Boolean indicating whether red-flagged (dummy) catalogues should be
         excluded or not.
@@ -1935,7 +1921,7 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
         t_func = time.time()
     
     # Convert to local time
-    local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, tel))
+    local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, TEL))
     minimal_date = minimal_date.astimezone(local_timezone)
     maximal_date = maximal_date.astimezone(local_timezone)
     
@@ -1992,6 +1978,7 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
         return []
     
     files2process = []
+    dummy_keyword = get_par(settingsFile.keyDummy, TEL)
     for transient_cat in transient_files:
         # Parse date encoded in filename and compare with our limits
         # (e.g. ML1_20200517_034221_red_trans_light.fits)
@@ -2009,11 +1996,11 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
             else:
                 LOG.info("Excluding red-flagged (dummy) catalogues.")
                 
-                if DUMMY_KEYWORD not in header.keys():
-                    LOG.critical("{} not in the header!".format(DUMMY_KEYWORD))
+                if dummy_keyword not in header.keys():
+                    LOG.critical("{} not in the header!".format(dummy_keyword))
                     return []
                 
-                if not header[DUMMY_KEYWORD]:
+                if not header[dummy_keyword]:
                     files2process.append(transient_cat)
     
     LOG.info("{} transient catalogues have been selected."
@@ -2026,7 +2013,7 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date, tel,
 # In[ ]:
 
 
-def get_night_start_from_date(cat_name, tel, noon_type="local"):
+def get_night_start_from_date(cat_name, noon_type="local"):
     
     """
     This function returns the noon corresponding to the start of the
@@ -2040,8 +2027,6 @@ def get_night_start_from_date(cat_name, tel, noon_type="local"):
         Name of the catalogue corresponding to an observation that took place
         on the observation night for which the noon that signifies the start of
         the night must be determined.
-    tel: string
-        Telescope abbreviation.
     noon_type: string
         Must be either "local" or "utc". If "utc", this function will return
         the noon corresponding to the start of the night in UTC. This can be
@@ -2052,13 +2037,14 @@ def get_night_start_from_date(cat_name, tel, noon_type="local"):
     # Get observation time from catalogue header and define as being in UTC
     with fits.open(cat_name) as hdu:
         hdr = hdu[1].header
+    date_keyword = get_par(settingsFile.keyDate, TEL)
     
-    observation_time = pytz.utc.localize(Time(hdr[DATE_KEYWORD],
+    observation_time = pytz.utc.localize(Time(hdr[date_keyword],
                                               format="isot").datetime)
     observation_date = str(observation_time.date())
     
     if noon_type == "local":
-        local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, tel))
+        local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, TEL))
         
         # Get local noon corresponding to the start of the observing night
         local_noon = local_timezone.localize(datetime.strptime(" ".join([
@@ -2424,25 +2410,20 @@ def check_input_parameters(mode, cat2process, date2process, list2process):
 # In[ ]:
 
 
-def load_and_check_folders(tel):
+def load_and_check_folders():
     
     """
     Function loads the folders specified in the settings file and checks
     whether they end with a slash. In addition, checks on the existence of the
     folders are performed. A tuple of the folder names is returned. The returned
     tuple is empty if there was an issue.
-    
-    Parameters:
-    -----------
-    tel: string
-        Telescope abbreviation.
     """
     
     # Load folders
-    input_folder = get_par(settingsFile.inputFolder, tel)
-    tmp_folder = get_par(settingsFile.tmpFolder, tel)
-    log_folder = get_par(settingsFile.logFolder, tel)
-    report_folder = get_par(settingsFile.MPCreportFolder, tel)
+    input_folder = get_par(settingsFile.inputFolder, TEL)
+    tmp_folder = get_par(settingsFile.tmpFolder, TEL)
+    log_folder = get_par(settingsFile.logFolder, TEL)
+    report_folder = get_par(settingsFile.MPCreportFolder, TEL)
     
     # Check if folder names end with a slash
     input_folder = check_folder_name(input_folder)
@@ -2679,12 +2660,13 @@ def check_input_catalogue(cat_name):
     with fits.open(cat_name) as hdu:
         header = hdu[1].header
     
-    if DUMMY_KEYWORD not in header.keys():
-        LOG.critical("{} not in the header of {}!".format(DUMMY_KEYWORD,
+    dummy_keyword = get_par(settingsFile.keyDummy, TEL)
+    if dummy_keyword not in header.keys():
+        LOG.critical("{} not in the header of {}!".format(dummy_keyword,
                                                           cat_name))
         return False, None, cat_name
     
-    if header[DUMMY_KEYWORD]:
+    if header[dummy_keyword]:
         LOG.info("{} is a dummy catalogue.".format(cat_name))
         return True, True, cat_name
     
@@ -3176,9 +3158,10 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     # Load transient catalogue header
     with fits.open(transient_cat) as hdu:
         transient_header = hdu[1].header
+    mpc_code_keyword = get_par(settingsFile.keyMPCcode, TEL)
     
     # Get the MPC observatory code from the header
-    mpc_code = transient_header[MPC_CODE_KEYWORD].strip()
+    mpc_code = transient_header[mpc_code_keyword].strip()
     if mpc_code not in list(pd.read_fwf(settingsFile.obsCodesFile,
                                         widths=[4, 2000],
                                         skiprows=1)["Code"])[:-1]:
@@ -3192,7 +3175,8 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
         return mpc_code, False
     
     # Get observation date in the right format
-    date_obs = Time(transient_header[DATE_KEYWORD], format="isot").datetime
+    date_keyword = get_par(settingsFile.keyDate, TEL)
+    date_obs = Time(transient_header[date_keyword], format="isot").datetime
     decimal_day = date_obs.day + 1./24.*(
         date_obs.hour + 1./60.*(date_obs.minute + 1./60.*(
             date_obs.second + date_obs.microsecond/10.**6)))
@@ -3201,9 +3185,12 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     # Load transient catalogue data
     with fits.open(transient_cat) as hdu:
         detections = Table(hdu[1].data)
+    number_column = get_par(settingsFile.colNumber, TEL)
+    mag_column = get_par(settingsFile.colMag, TEL)
+    snr_column = get_par(settingsFile.colSNR, TEL)
     
     # Remove negative transients
-    index_positives = np.where(detections[SNR_COLUMN]>=0)[0]
+    index_positives = np.where(detections[snr_column]>=0)[0]
     detections = detections[index_positives]
     
     # Check if there are positive transients to include
@@ -3222,14 +3209,16 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
         # In this way, we will be able to link the known objects to the right
         # source.
         line = ("     {:0>7}  C"
-                .format(detections[NUMBER_COLUMN][detection_index]))
+                .format(detections[number_column][detection_index]))
         line = "".join([line, mpc_char16to32])
         
         # Get the coordinates and magnitude of the source
-        coord = SkyCoord(detections[RA_COLUMN][detection_index],
-                         detections[DEC_COLUMN][detection_index],
+        ra_column = get_par(settingsFile.colRA, TEL)
+        dec_column = get_par(settingsFile.colDec, TEL)
+        coord = SkyCoord(detections[ra_column][detection_index],
+                         detections[dec_column][detection_index],
                          unit="deg", frame="icrs") 
-        mag = "{:.1f}".format(detections[MAG_COLUMN][detection_index])
+        mag = "{:.1f}".format(detections[mag_column][detection_index])
         
         line = "".join([line, "{} {}          {} G      {}"
                         .format(coord.to_string("hmsdms", sep=" ",
