@@ -855,6 +855,48 @@ def create_chk_files(noon, noon_type, rundir):
 # In[ ]:
 
 
+def use_existing_database(databaselist, sso_type):
+    
+    """
+    Select the most recently downloaded unintegrated asteroid/comet database
+    from the input list [databaselist], by the database's name. If there is no
+    unintegrated database, select the most recent integrated one. Empty
+    databases (created when INCLUDE_COMETS = False) should not be in the input
+    list.
+    The function returns the database name & version.
+    
+    Parameters:
+    -----------
+    databaselist: list of strings
+        List of the asteroid / comet databases that were downloaded previously.
+        This can include different database versions and/or integrated to
+        different epochs.
+    sso_type: string
+        Type of database: asteroid or comet
+    """
+    LOG.info("Selecting {} database that was downloaded in a previous run."
+             .format(sso_type))
+    
+    # Select unintegrated databases only if available and sort on name
+    unintegrated_databases = [DB for DB in databaselist if "epoch" not in DB]
+    databases_sorted = sorted(unintegrated_databases)
+    if not databases_sorted:
+        databases_sorted = sorted(databaselist)
+    
+    # Select most recently downloaded database
+    database_name = databases_sorted[-1]
+    
+    # Retrieve database version from database name
+    database_version = os.path.splitext(
+        os.path.basename(database_name))[0].split("_")[1].replace("version", "")
+    LOG.info("{} database version {}".format(sso_type, database_version))
+    
+    return database_name, database_version
+
+
+# In[ ]:
+
+
 def download_database(sso_type, redownload_db, tmp_folder):
     
     """
@@ -892,43 +934,54 @@ def download_database(sso_type, redownload_db, tmp_folder):
     # Determine whether database needs to be downloaded
     existing_databases = list_files("{}{}DB_".format(tmp_folder, sso_type),
                                     end_str=".dat")
-    existing_unintegrated_databases = [DB for DB in existing_databases                                        if "epoch" not in DB]
-    download = True
-    if not redownload_db and len(existing_databases) > 0:
-        download = False
-        
-    # Download database if desired and get database version
-    if download:
-        LOG.info("Downloading {} database...".format(sso_type))
-        database_version = datetime.utcnow().strftime("%Y%m%dT%H%M")
-        database_name = "{}{}DB_version{}.dat".format(tmp_folder, sso_type,
-                                                      database_version)
-        req = requests.get(database_url, allow_redirects=True)
-        open(database_name, "wb").write(req.content)
-        LOG.info("{} database version: {}".format(sso_type, database_version))
-        
-        # Remove asteroids with large orbital uncertainties from database
-        if sso_type == "asteroid":
-            select_asteroids_on_uncertainty(database_name)
+    if not redownload_db and existing_databases:
+        database_name, database_version = use_existing_database(
+            existing_databases, sso_type)
+        return database_name, database_version
+    
+    # Download database and get database version
+    LOG.info("Downloading {} database...".format(sso_type))
+    database_version = datetime.utcnow().strftime("%Y%m%dT%H%M")
+    database_name = "{}{}DB_version{}.dat".format(tmp_folder, sso_type,
+                                                  database_version)
+    req = requests.get(database_url, allow_redirects=True)
+    open(database_name, "wb").write(req.content)
+    LOG.info("{} database version: {}".format(sso_type, database_version))
+    
+    # Remove asteroids with large orbital uncertainties from database
+    if sso_type == "asteroid":
+        select_asteroids_on_uncertainty(database_name)
+    
+    # Compare database size to that of a previously downloaded database, as a
+    # crude check whether the database was downloaded fully. As both databases
+    # have objects with large orbital uncertainties removed, there may be a
+    # small size difference. We therefore round to the nearest 10,000 bytes
+    # before comparing.
+    if existing_databases:
+        oldDBname = sorted(existing_databases)[-1]
+        size_oldDB = round(os.path.getsize(oldDBname)/10000.)
+        size_newDB = round(os.path.getsize(database_name)/10000.)
+        if size_newDB < size_oldDB:
+            LOG.error("Downloaded database is {}e4 bytes, whereas the old "
+                      "database {} is {}e4 bytes in size. Something went wrong!"
+                      .format(size_newDB, oldDBname, size_oldDB))
+            LOG.info("Removing just downloaded database")
+            os.remove(database_name)
             
-        #if not KEEP_TMP and len(existing_databases) > 0:
-        #    LOG.info("Removing older {} database versions.".format(sso_type))
-        #    for old_database in existing_databases:
-        #        os.remove(old_database)
-        #        LOG.info("Removed {}.".format(old_database))
-    else:
-        # Retrieve most recent (unintegrated) database version. If there is no
-        # unintegrated database, retrieve the most recent integrated one. Empty
-        # databases (created when INCLUDE_COMETS = False) are not taken into
-        # account, as these are in a different folder.
-        databases_sorted = sorted(existing_unintegrated_databases)
-        if not databases_sorted:
-            databases_sorted = sorted(existing_databases)
-        database_name = databases_sorted[-1]
-        database_version = os.path.splitext(
-            os.path.basename(database_name))[0].split("_")[1].replace(
-                "version", "")
-        LOG.info("{} database version {}".format(sso_type, database_version))
+            # Use older database version (downloaded before)
+            database_name, database_version = use_existing_database(
+                existing_databases, sso_type)
+            
+            if TIME_FUNCTIONS:
+                log_timing_memory(t_subfunc, label="downloadDatabase ({})"
+                                  .format(sso_type))
+            return database_name, database_version  
+    
+    #if not KEEP_TMP and len(existing_databases) > 0:
+    #    LOG.info("Removing older {} database versions.".format(sso_type))
+    #    for old_database in existing_databases:
+    #        os.remove(old_database)
+    #        LOG.info("Removed {}.".format(old_database))
     
     if TIME_FUNCTIONS:
         log_timing_memory(t_subfunc, label="downloadDatabase ({})"
@@ -1016,6 +1069,16 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
                        cwd=tmp_folder, stdout=subprocess.DEVNULL, check=True)
         if TIME_FUNCTIONS:
             log_timing_memory(t_subtiming, label="integrat")
+        
+        # Check file size (rounded to nearest 10,000 bytes) as a crude check to
+        # see if integration step was performed without issues
+        size_DB = round(os.path.getsize(asteroid_database)/10000.)
+        size_intDB = round(os.path.getsize(integrated_asteroid_database)/10000.)
+        if size_intDB < size_DB:
+            LOG.error("Integrated database is smaller than original database! "
+                      "({}e4 byte < {}e4 byte)".format(size_intDB, size_DB))
+            LOG.warning("Using unintegrated database instead!")
+            integrated_asteroid_database = asteroid_database
         
         # Remove temporary file created by integrat
         if isfile("{}ickywax.ugh".format(tmp_folder)):
