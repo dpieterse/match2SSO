@@ -3299,7 +3299,7 @@ def format_cat(data, header=None, header_keys=[], start_header=None):
     # Combine formatted fits columns and header into output binary fits table
     fitstable = fits.BinTableHDU.from_columns(columns, header=finalheader)
     
-    LOG.info("{} sources in catalogue".format(len(fitstable)))
+    LOG.info("{} sources in catalogue".format(len(fitstable.data)))
     #mem_use(label="at end of format_cat")
     return fitstable
 
