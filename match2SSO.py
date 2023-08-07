@@ -5,7 +5,8 @@
 # * Running instructions are given at the start of function run_match2SSO
 # * Originally written as a Jupyter Notebook using Python 3.8.10
 # * Compatible with MeerLICHT / BlackGEM observations
-# * Compatible with BlackBOX / ZOGY version 1.0.0 and up (image processing pipeline of MeerLICHT & BlackGEM)
+# * Compatible with BlackBOX / ZOGY version 1.0.0 and up (image processing
+#   pipeline of MeerLICHT & BlackGEM)
 # * Compatible with Unix file systems and Google cloud storage systems
 # 
 # Output (SSO) catalogue columns and header keywords are listed here:
@@ -117,7 +118,12 @@ KEEP_TMP = bool(settingsFile.keep_tmp)
 TIME_FUNCTIONS = bool(settingsFile.time_functions)
 
 
-# ## Main routines to call match2SSO functions in the correct order
+# ## Wrapper routines to call match2SSO functions in the correct order
+# Run <i>match2SSO</i> by calling wrapper function run_match2SSO(). That function
+# runs <i>match2SSO</i> in day/night/historic mode by calling the appropriate
+# wrapper function defined in this section. The day & historic modes in turn call
+# other wrapper functions - match_catalogues_single_night() and 
+# match_single_catalogue() - also defined in this section.
 
 # In[ ]:
 
@@ -771,84 +777,111 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
 # * Save solar system object detections (matches) to SSO catalogue
 # * Create MPC report
 
+# ### Step 1: create known objects catalogue
+# Call wrapper function create_known_objects_database() to either select an existing database or to:
+# - Download asteroid & comet databases
+# - Discard asteroids with high orbital uncertainties
+# - Integrate the asteroid database to the observation epoch
+# - Combine asteroid & comet databases into one 'known objects' database
+
 # In[ ]:
 
 
-def create_chk_files(noon, noon_type, rundir):
+def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
     
     """
-    Function that creates the CHK files that astcheck uses (and produces if
-    they don't exist yet) when matching, by running astcheck on a fake
-    detection and subsequently removing the fake data products excluding the
-    CHK files. These files describe the positions of all asteroids at the start
-    and end of the night (both at noon) in UTC. This function is only needed
-    when running match2SSO in the day mode, as this will then allow
-    parallelisation in the night mode.
+    Wrapper function to create a known (solar system) objects database.
     
-    As the 24-hour local observing night (between local noons) can overlap with
-    two UTC nights (between UTC noons) if there is a large time difference
-    between the timezone of the telescope and UTC, we will have to try
-    producing CHK files both for a time close to the start of the local night
-    (we take 1 min after) as well as for a time close to the end of it (1 min
-    before). This function should hence be run twice. This will produce a total
-    of 2 or 3 CHK files that astcheck will subsequently use to match any
-    observation taken during the local observing night to the known solar
-    system objects.
+    Function downloads the most recent versions of the asteroid database and
+    the comet database. It then uses integrat.cpp from the lunar repository to
+    integrate the asteroid orbits to midnight of the observation night, in
+    order to optimize the predicted positions of known objects.
+    
+    Beware: the current version of integrat.cpp cannot be used on JPL's comet
+    file, as it is not compatible with its format. As a consequence, there
+    might be an offset in the predictions of the comet positions, perhaps
+    causing us to miss these objects in the linking routine. Note that the
+    MPC's comet file could be integrated to the right epoch using integrat.cpp,
+    but as this file is not compatible with astcheck, it cannot be used here.
     
     Parameters:
     -----------
-    noon: datetime object
-        Noon that corresponds to either the start or the end of the observing
-        night.
-    noon_type: string
-        Should be either "night_start" or "night_end", depending on which noon
-        was given as input.
+    midnight: datetime object, including time zone
+        Local midnight during the observation night.
     rundir: string
-        Directory in which astcheck is run. This directory should contain
-        the mpc2sof catalogue that contains the known solar system objects.
+        Directory in which mpc2sof is run and which the known objects catalogue
+        is saved to.
+    tmp_folder: string
+        Folder to save the known objects databases to that are created in this
+        function.
+    redownload_db: boolean
+        If False, the databases will not be redownloaded. They will only be
+        integrated to the observation epoch (midnight on the observation
+        night).
     """
+    #mem_use(label="at start of create_known_objects_database")
+    if TIME_FUNCTIONS:
+        t_func = time.time()
     
-    # Check noon_type parameter and set observation time for fake
-    # detection
-    noon_type = noon_type.lower()
-    if noon_type not in ["night_start", "night_end"]:
-        LOG.error("Unknown noon type!")
-        return
-    if noon_type == "night_start":
-        obstime = noon + timedelta(minutes=1)
-    elif noon_type == "night_end":
-        obstime = noon - timedelta(minutes=1)
+    # Download asteroid database
+    asteroid_database, asteroid_database_version = download_database(
+        "asteroid", redownload_db, tmp_folder)
     
-    # Convert observation time of fake detection to UTC
-    obstime = obstime.astimezone(pytz.utc)
+    # Download comet database if requested
+    if INCLUDE_COMETS:
+        _, comet_database_version = download_database("comet", redownload_db,
+                                                      tmp_folder)
+    else:
+        LOG.info("Do not download comet database. Instead, create an empty "
+                 "comet database so that there's no matching to comets.")
+        open("{}ELEMENTS.COMET".format(rundir), "w").write("".join([
+            "Num  Name                                     Epoch      q      ",
+            "     e        i         w        Node          Tp       Ref\n---",
+            "---------------------------------------- ------- ----------- ---",
+            "------- --------- --------- --------- -------------- ------------"
+            ]))
     
-    # Create MPC-formatted file with fake detection
-    mpcformat_file_fake = "{}fakedetection_{}_MPCformat.txt".format(rundir,
-                                                                    noon_type)
-    LOG.info("Creating fake detection: {}".format(mpcformat_file_fake))
-    mpcformat_file_fake_content = open(mpcformat_file_fake, "w")
-    fake_detection = "".join([
-        "     0000001  C{} {:0>2} {:08.5f} "
-        .format(obstime.year, obstime.month, obstime.day),
-        "00 00 00.00 +00 00 00.0          0.00 G      L66"
-        ])
-    mpcformat_file_fake_content.write(fake_detection)
-    mpcformat_file_fake_content.close()
+    # Integrat only accepts UTC midnights. Choose the one closest to local
+    # midnight.
+    date_midnight = midnight.date()
+    if midnight.hour >= 12.:
+        date_midnight = date_midnight + timedelta(days=1)
+    midnight_utc = pytz.utc.localize(datetime.strptime(" ".join([
+        date_midnight.strftime("%Y%m%d"), "000000"]), "%Y%m%d %H%M%S"))
+    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
     
-    # Run astcheck on fake observation to create CHK files
-    LOG.info("Running astcheck on fake detection")
-    astcheck_file_fake = mpcformat_file_fake.replace("_MPCformat.txt",
-                                                     "_astcheckMatches.txt")
-    run_astcheck(mpcformat_file_fake, rundir, astcheck_file_fake,
-                 matching_radius=0)
+    # Integrate asteroid database to local midnight
+    integrated_asteroid_database = integrate_database(
+        asteroid_database, asteroid_database_version, midnight_utc, tmp_folder)
     
-    # Remove MPC-formatted file and astcheck output related to the fake
-    # detection
-    os.remove(mpcformat_file_fake)
-    LOG.info("Removed {}".format(mpcformat_file_fake))
-    os.remove(astcheck_file_fake)
-    LOG.info("Removed {}".format(astcheck_file_fake))
+    # Create the symbolic links in the run directory that mpc2sof needs
+    symlink_asteroid_database = "{}MPCORB.DAT".format(rundir)
+    if isfile(symlink_asteroid_database):
+        LOG.info("Removing the old MPCORB.DAT symbolic link")
+        os.unlink(symlink_asteroid_database)
+    os.symlink(integrated_asteroid_database, symlink_asteroid_database)
+    LOG.info("Created symbolic link {}".format(symlink_asteroid_database))
     
+    if INCLUDE_COMETS:
+        symlink_comet_database = "{}ELEMENTS.COMET".format(rundir)
+        if isfile(symlink_comet_database):
+            LOG.info("Removing the old ELEMENTS.COMET symbolic link")
+            os.unlink(symlink_comet_database)
+        os.symlink("{}cometDB_version{}.dat".format(
+            tmp_folder, comet_database_version), symlink_comet_database)
+        LOG.info("Created symbolic link {}".format(symlink_comet_database))
+    #mem_use(label="after creating symbolic links to the databases")
+    
+    # Combine the known comets and asteroids into a SOF file, which astcheck
+    # will then use as input
+    LOG.info("Combining asteroids and comets into SOF file.")
+    t_subtiming = time.time()
+    subprocess.run("mpc2sof", cwd=rundir, check=True)
+    if TIME_FUNCTIONS:
+        log_timing_memory(t_subtiming, label="mpc2sof")
+        log_timing_memory(t_func, label="create_known_objects_database")
+    
+    LOG.info("Finished loading and formatting external databases.")
     return
 
 
@@ -993,134 +1026,6 @@ def download_database(sso_type, redownload_db, tmp_folder):
 # In[ ]:
 
 
-def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
-    
-    """
-    Function downloads the most recent versions of the asteroid database and
-    the comet database. It then uses integrat.cpp from the lunar repository to
-    integrate the asteroid orbits to midnight of the observation night, in
-    order to optimize the predicted positions of known objects.
-    
-    Beware: the current version of integrat.cpp cannot be used on JPL's comet
-    file, as it is not compatible with its format. As a consequence, there
-    might be an offset in the predictions of the comet positions, perhaps
-    causing us to miss these objects in the linking routine. Note that the
-    MPC's comet file could be integrated to the right epoch using integrat.cpp,
-    but as this file is not compatible with astcheck, it cannot be used here.
-    
-    Parameters:
-    -----------
-    midnight: datetime object, including time zone
-        Local midnight during the observation night.
-    rundir: string
-        Directory in which mpc2sof is run and which the known objects catalogue
-        is saved to.
-    tmp_folder: string
-        Folder to save the known objects databases to that are created in this
-        function.
-    redownload_db: boolean
-        If False, the databases will not be redownloaded. They will only be
-        integrated to the observation epoch (midnight on the observation
-        night).
-    """
-    #mem_use(label="at start of create_known_objects_database")
-    if TIME_FUNCTIONS:
-        t_func = time.time()
-    
-    # Download asteroid database
-    asteroid_database, asteroid_database_version = download_database(
-        "asteroid", redownload_db, tmp_folder)
-    
-    # Download comet database if requested
-    if INCLUDE_COMETS:
-        _, comet_database_version = download_database("comet", redownload_db,
-                                                      tmp_folder)
-    else:
-        LOG.info("Do not download comet database. Instead, create an empty "
-                 "comet database so that there's no matching to comets.")
-        open("{}ELEMENTS.COMET".format(rundir), "w").write("".join([
-            "Num  Name                                     Epoch      q      ",
-            "     e        i         w        Node          Tp       Ref\n---",
-            "---------------------------------------- ------- ----------- ---",
-            "------- --------- --------- --------- -------------- ------------"
-            ]))
-    
-    # Integrat only accepts UTC midnights. Choose the one closest to local
-    # midnight.
-    date_midnight = midnight.date()
-    if midnight.hour >= 12.:
-        date_midnight = date_midnight + timedelta(days=1)
-    midnight_utc = pytz.utc.localize(datetime.strptime(" ".join([
-        date_midnight.strftime("%Y%m%d"), "000000"]), "%Y%m%d %H%M%S"))
-    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
-    
-    # Integrate the asteroid database to the observation date
-    integrated_asteroid_database = (
-        "{}asteroidDB_version{}_epoch{}.dat"
-        .format(tmp_folder, asteroid_database_version, midnight_utc_str))
-    if not isfile(integrated_asteroid_database):
-        LOG.info("Integrating asteroid database to epoch {}..."
-                 .format(midnight_utc_str))
-        if TIME_FUNCTIONS:
-            t_subtiming = time.time()
-        subprocess.run(["integrat", asteroid_database,
-                        integrated_asteroid_database,
-                        str(Time(midnight_utc).jd), "-f{}".format(FILE_JPLEPH)],
-                       cwd=tmp_folder, stdout=subprocess.DEVNULL, check=True)
-        if TIME_FUNCTIONS:
-            log_timing_memory(t_subtiming, label="integrat")
-        
-        # Check file size (rounded to nearest 10,000 bytes) as a crude check to
-        # see if integration step was performed without issues
-        size_DB = round(os.path.getsize(asteroid_database)/10000.)
-        size_intDB = round(os.path.getsize(integrated_asteroid_database)/10000.)
-        if size_intDB < size_DB:
-            LOG.error("Integrated database is smaller than original database! "
-                      "({}e4 byte < {}e4 byte)".format(size_intDB, size_DB))
-            LOG.warning("Using unintegrated database instead!")
-            integrated_asteroid_database = asteroid_database
-        
-        # Remove temporary file created by integrat
-        if isfile("{}ickywax.ugh".format(tmp_folder)):
-            os.remove("{}ickywax.ugh".format(tmp_folder))
-    
-    # Create the symbolic links in the run directory that mpc2sof needs
-    symlink_asteroid_database = "{}MPCORB.DAT".format(rundir)
-    if isfile(symlink_asteroid_database):
-        LOG.info("Removing the old MPCORB.DAT symbolic link")
-        os.unlink(symlink_asteroid_database)
-    os.symlink(integrated_asteroid_database, symlink_asteroid_database)
-    LOG.info("Created symbolic link {}".format(symlink_asteroid_database))
-    
-    if INCLUDE_COMETS:
-        symlink_comet_database = "{}ELEMENTS.COMET".format(rundir)
-        if isfile(symlink_comet_database):
-            LOG.info("Removing the old ELEMENTS.COMET symbolic link")
-            os.unlink(symlink_comet_database)
-        os.symlink("{}cometDB_version{}.dat".format(
-            tmp_folder, comet_database_version), symlink_comet_database)
-        LOG.info("Created symbolic link {}".format(symlink_comet_database))
-    #mem_use(label="after creating symbolic links to the databases")
-    
-    # Combine the known comets and asteroids into a SOF file, which astcheck
-    # will then use as input
-    LOG.info("Combining asteroids and comets into SOF file.")
-    if TIME_FUNCTIONS:
-        t_subtiming = time.time()
-    
-    subprocess.run("mpc2sof", cwd=rundir, check=True)
-    
-    if TIME_FUNCTIONS:
-        log_timing_memory(t_subtiming, label="mpc2sof")
-        log_timing_memory(t_func, label="create_known_objects_database")
-    LOG.info("Finished loading and formatting external databases.")
-    
-    return
-
-
-# In[ ]:
-
-
 def select_asteroids_on_uncertainty(asteroid_database):
     
     """
@@ -1201,6 +1106,71 @@ def select_asteroids_on_uncertainty(asteroid_database):
     
     return
 
+
+# In[ ]:
+
+
+def integrate_database(asteroid_database, asteroid_database_version,
+                       midnight_utc, tmp_folder):
+    """
+    Function integrates MPCORB database to the observation epoch and saves the
+    integrated database to a .dat file. It returns the name of this file.
+    
+    Parameters:
+    -----------
+    asteroid_database: string
+        Name of the asteroid database that is to be integrated.
+    asteroid_database_version: string
+        Name of the version (download date) of the asteroid database.
+    midnight_utc: datetime object, including time zone
+        Local midnight during the observation night.
+    tmp_folder: string
+        Folder to save the integrated database to that is created in this
+        function.
+    """
+    if TIME_FUNCTIONS:
+        t_subtiming = time.time()
+    
+    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
+    LOG.info("Integrating asteroid database to epoch {}..."
+             .format(midnight_utc_str))
+    
+    # Define integrated asteroid database name
+    integrated_asteroid_database = (
+        "{}asteroidDB_version{}_epoch{}.dat"
+        .format(tmp_folder, asteroid_database_version, midnight_utc_str))
+    
+    # If file exists, there is no reason to remake it
+    if isfile(integrated_asteroid_database):
+        return integrated_asteroid_database
+    
+    # Integrate database
+    subprocess.run(["integrat", asteroid_database, integrated_asteroid_database,
+                    str(Time(midnight_utc).jd), "-f{}".format(FILE_JPLEPH)],
+                   cwd=tmp_folder, stdout=subprocess.DEVNULL, check=True)
+    
+    # Check file size (rounded to nearest 10,000 bytes) as a crude check to see
+    # if the integration was performed without issues
+    size_DB = round(os.path.getsize(asteroid_database)/10000.)
+    size_intDB = round(os.path.getsize(integrated_asteroid_database)/10000.)
+    if size_intDB < size_DB:
+        LOG.error("Integrated database is smaller than original database! "
+                  "({}e4 byte < {}e4 byte)".format(size_intDB, size_DB))
+        LOG.warning("Using unintegrated database instead!")
+        integrated_asteroid_database = asteroid_database
+    
+    # Remove temporary file created by integrat
+    if isfile("{}ickywax.ugh".format(tmp_folder)):
+        os.remove("{}ickywax.ugh".format(tmp_folder))
+    
+    if TIME_FUNCTIONS:
+        log_timing_memory(t_subtiming, label="integrate_database")
+    
+    return integrated_asteroid_database
+
+
+# ### Step 2: create predictions catalogue
+# Use astcheck to find the objects in the FOV of the telescope during the observation
 
 # In[ ]:
 
@@ -1363,6 +1333,63 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
 # In[ ]:
 
 
+def run_astcheck(mpcformat_file, rundir, output_file,
+                 matching_radius=settingsFile.matchingRadius):
+    """
+    Run astcheck on the input transient catalogue to find matches between
+    transient detections and known solar system objects. Per detection, all
+    matches within the matching_radius are selected and saved to the output text
+    file.
+    
+    Parameters:
+    -----------
+    mpcformat_file: string
+        Name of the input text-file that is formatted according to the MPC's
+        80-column MPC format. This file can list detections / tracklets for
+        astcheck to match, but it can also contain just a single row
+        representing the observation. In the latter use case, the specified
+        coordinates should correspond to the centre of the observation.
+    rundir: string
+        Directory in which astcheck is run. This directory should contain
+        the mpc2sof catalogue that contains the known solar system objects.
+    output_file: string
+        Path to and name of the output text file in which the matches found
+        by astcheck are stored.
+    matching_radius: int or float
+        Matching radius in arcsec. The default value is the one specified in
+        the settings file [set_match2SSO.py].
+    """
+    #mem_use(label="at start of run_astcheck")
+    LOG.info("Running astcheck: matching detections to known solar system "
+             "bodies.")
+    if TIME_FUNCTIONS:
+        t_func = time.time()
+    
+    if not OVERWRITE_FILES and isfile(output_file):
+        LOG.info("Astcheck output file already exists and won't be re-made.")
+        return
+    
+    # Create a file for storing the output of the astcheck run
+    output_file_content = open(output_file, "w")
+    
+    # Run astcheck from folder containing .sof-file
+    subprocess.call(["astcheck", mpcformat_file, "-h",
+                     "-r{}".format(matching_radius),
+                     "-m{}".format(settingsFile.limitingMagnitude),
+                     "-M{}".format(settingsFile.maximalNumberOfAsteroids)],
+                    stdout=output_file_content, cwd=rundir)
+    output_file_content.close()
+    
+    LOG.info("Matches saved to {}.".format(output_file))
+    if TIME_FUNCTIONS:
+        log_timing_memory(t_func, label="run_astcheck")
+    
+    return
+
+
+# In[ ]:
+
+
 def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     
     """
@@ -1505,178 +1532,9 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     return header
 
 
-# In[ ]:
-
-
-def convert_fits2mpc(transient_cat, mpcformat_file):
-    
-    """
-    Function converts the transient catalogue to a text file of the MPC
-    80-column format, so that astcheck can run on it. For the asteroid / comet
-    identifier used in the MPC file, the transient number is used. This
-    transient number cannot be used for MPC reports as it is not all-time unique
-    (per telescope). But it is a straight-forward way to link detections to
-    known solar system objects within match2SSO.
-    
-    Negative transients are excluded from the MPC-formatted file. In the case of
-    moving objects, these are sources that are present in the reference image
-    but not in the new image. They can be recognised as having a negative
-    signal-to-noise ratio value in the significance (Scorr) image for MeerLICHT
-    and BlackGEM. As reference images can be stacked images (that are not
-    centered on the asteroid) for which the observation date and time is
-    unclear, and as we use the date of the new image as the observation date,
-    asteroids in the reference images are not useful.
-    
-    Function returns the MPC Observatory code of the telescope with which the
-    observation was made, and a boolean indicating whether there were detections
-    to be converted (dummy = False) or not (dummy = True).
-    
-    Parameters:
-    -----------
-    transient_cat: string
-        Path to and name of the transient catalogue.
-    mpcformat_file: string
-        Path to and name of the MPC-formatted text file that is made in this
-        function.
-    """
-    #mem_use(label="at start of convert_fits2mpc")
-    LOG.info("Converting transient catalogue to MPC-format.")
-    if TIME_FUNCTIONS:
-        t_func = time.time()
-    
-    # Load transient catalogue header
-    with fits.open(transient_cat) as hdu:
-        transient_header = hdu[1].header
-    
-    # Get the MPC observatory code from the header
-    mpc_code = transient_header[MPC_CODE_KEYWORD].strip()
-    if mpc_code not in list(pd.read_fwf(settingsFile.obsCodesFile,
-                                        widths=[4, 2000],
-                                        skiprows=1)["Code"])[:-1]:
-        LOG.critical("MPC code {} is not in the MPC list of observatory codes"
-                     .format(mpc_code))
-        return None, True
-    
-    # Check if MPC-formatted file exists and if it should be overwritten or not
-    if not OVERWRITE_FILES and isfile(mpcformat_file):
-        LOG.info("MPC-formatted file already exists and will not re-made.")
-        return mpc_code, False
-    
-    # Get observation date in the right format
-    date_obs = Time(transient_header[DATE_KEYWORD], format="isot").datetime
-    decimal_day = date_obs.day + 1./24.*(
-        date_obs.hour + 1./60.*(date_obs.minute + 1./60.*(
-            date_obs.second + date_obs.microsecond/10.**6)))
-    mpc_char16to32 = "{} {:0>2} {:08.5f} ".format(date_obs.year, 
-                                                  date_obs.month, decimal_day)
-    # Load transient catalogue data
-    with fits.open(transient_cat) as hdu:
-        detections = Table(hdu[1].data)
-    
-    # Remove negative transients
-    index_positives = np.where(detections[SNR_COLUMN]>=0)[0]
-    detections = detections[index_positives]
-    
-    # Check if there are positive transients to include
-    if len(detections) == 0:
-        dummy = True
-        LOG.info("No (positive) sources available for linking.")
-        return mpc_code, dummy
-    dummy = False
-    
-    # Create output file
-    mpcformat_file_content = open(mpcformat_file, "w")
-    
-    # Loop over the detections and add data to the MPC-formatted file
-    for detection_index in range(len(detections)):
-        # Use the source numbers as "temporary designations" in the MPC format.
-        # In this way, we will be able to link the known objects to the right
-        # source.
-        line = ("     {:0>7}  C"
-                .format(detections[NUMBER_COLUMN][detection_index]))
-        line = "".join([line, mpc_char16to32])
-        
-        # Get the coordinates and magnitude of the source
-        coord = SkyCoord(detections[RA_COLUMN][detection_index],
-                         detections[DEC_COLUMN][detection_index],
-                         unit="deg", frame="icrs") 
-        mag = "{:.1f}".format(detections[MAG_COLUMN][detection_index])
-        
-        line = "".join([line, "{} {}          {} G      {}"
-                        .format(coord.to_string("hmsdms", sep=" ",
-                                                precision=2)[:11],
-                                coord.to_string("hmsdms", sep=" ",
-                                                precision=1)[-11:],
-                                mag.rjust(4), mpc_code)])
-        
-        # Write the data to the MPC-formatted file
-        mpcformat_file_content.write("{}\n".format(line))
-    
-    mpcformat_file_content.close()
-    
-    LOG.info("MPC-formatted file saved to {}.".format(mpcformat_file))
-    if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="convert_fits2mpc")
-    
-    return mpc_code, dummy
-
-
-# In[ ]:
-
-
-def run_astcheck(mpcformat_file, rundir, output_file,
-                 matching_radius=settingsFile.matchingRadius):
-    """
-    Run astcheck on the input transient catalogue to find matches between
-    transient detections and known solar system objects. Per detection, all
-    matches within the matching_radius are selected and saved to the output text
-    file.
-    
-    Parameters:
-    -----------
-    mpcformat_file: string
-        Name of the input text-file that is formatted according to the MPC's
-        80-column MPC format. This file can list detections / tracklets for
-        astcheck to match, but it can also contain just a single row
-        representing the observation. In the latter use case, the specified
-        coordinates should correspond to the centre of the observation.
-    rundir: string
-        Directory in which astcheck is run. This directory should contain
-        the mpc2sof catalogue that contains the known solar system objects.
-    output_file: string
-        Path to and name of the output text file in which the matches found
-        by astcheck are stored.
-    matching_radius: int or float
-        Matching radius in arcsec. The default value is the one specified in
-        the settings file [set_match2SSO.py].
-    """
-    #mem_use(label="at start of run_astcheck")
-    LOG.info("Running astcheck: matching detections to known solar system "
-             "bodies.")
-    if TIME_FUNCTIONS:
-        t_func = time.time()
-    
-    if not OVERWRITE_FILES and isfile(output_file):
-        LOG.info("Astcheck output file already exists and won't be re-made.")
-        return
-    
-    # Create a file for storing the output of the astcheck run
-    output_file_content = open(output_file, "w")
-    
-    # Run astcheck from folder containing .sof-file
-    subprocess.call(["astcheck", mpcformat_file, "-h",
-                     "-r{}".format(matching_radius),
-                     "-m{}".format(settingsFile.limitingMagnitude),
-                     "-M{}".format(settingsFile.maximalNumberOfAsteroids)],
-                    stdout=output_file_content, cwd=rundir)
-    output_file_content.close()
-    
-    LOG.info("Matches saved to {}.".format(output_file))
-    if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="run_astcheck")
-    
-    return
-
+# ### Step 3: perform matching to create a catalogue of detected SSOs
+# Run astcheck to find the matches between detections and predicted SSO positions.
+# The detected SSOs are saved to an SSO catalogue.
 
 # In[ ]:
 
@@ -1829,6 +1687,8 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
     
     return
 
+
+# ### Step 4: create MPC report
 
 # In[ ]:
 
@@ -2899,6 +2759,87 @@ def remove_astcheck_header_and_footer(astcheck_file_content):
 # In[ ]:
 
 
+def create_chk_files(noon, noon_type, rundir):
+    
+    """
+    Function that creates the CHK files that astcheck uses (and produces if
+    they don't exist yet) when matching, by running astcheck on a fake
+    detection and subsequently removing the fake data products excluding the
+    CHK files. These files describe the positions of all asteroids at the start
+    and end of the night (both at noon) in UTC. This function is only needed
+    when running match2SSO in the day mode, as this will then allow
+    parallelisation in the night mode.
+    
+    As the 24-hour local observing night (between local noons) can overlap with
+    two UTC nights (between UTC noons) if there is a large time difference
+    between the timezone of the telescope and UTC, we will have to try
+    producing CHK files both for a time close to the start of the local night
+    (we take 1 min after) as well as for a time close to the end of it (1 min
+    before). This function should hence be run twice. This will produce a total
+    of 2 or 3 CHK files that astcheck will subsequently use to match any
+    observation taken during the local observing night to the known solar
+    system objects.
+    
+    Parameters:
+    -----------
+    noon: datetime object
+        Noon that corresponds to either the start or the end of the observing
+        night.
+    noon_type: string
+        Should be either "night_start" or "night_end", depending on which noon
+        was given as input.
+    rundir: string
+        Directory in which astcheck is run. This directory should contain
+        the mpc2sof catalogue that contains the known solar system objects.
+    """
+    
+    # Check noon_type parameter and set observation time for fake
+    # detection
+    noon_type = noon_type.lower()
+    if noon_type not in ["night_start", "night_end"]:
+        LOG.error("Unknown noon type!")
+        return
+    if noon_type == "night_start":
+        obstime = noon + timedelta(minutes=1)
+    elif noon_type == "night_end":
+        obstime = noon - timedelta(minutes=1)
+    
+    # Convert observation time of fake detection to UTC
+    obstime = obstime.astimezone(pytz.utc)
+    
+    # Create MPC-formatted file with fake detection
+    mpcformat_file_fake = "{}fakedetection_{}_MPCformat.txt".format(rundir,
+                                                                    noon_type)
+    LOG.info("Creating fake detection: {}".format(mpcformat_file_fake))
+    mpcformat_file_fake_content = open(mpcformat_file_fake, "w")
+    fake_detection = "".join([
+        "     0000001  C{} {:0>2} {:08.5f} "
+        .format(obstime.year, obstime.month, obstime.day),
+        "00 00 00.00 +00 00 00.0          0.00 G      L66"
+        ])
+    mpcformat_file_fake_content.write(fake_detection)
+    mpcformat_file_fake_content.close()
+    
+    # Run astcheck on fake observation to create CHK files
+    LOG.info("Running astcheck on fake detection")
+    astcheck_file_fake = mpcformat_file_fake.replace("_MPCformat.txt",
+                                                     "_astcheckMatches.txt")
+    run_astcheck(mpcformat_file_fake, rundir, astcheck_file_fake,
+                 matching_radius=0)
+    
+    # Remove MPC-formatted file and astcheck output related to the fake
+    # detection
+    os.remove(mpcformat_file_fake)
+    LOG.info("Removed {}".format(mpcformat_file_fake))
+    os.remove(astcheck_file_fake)
+    LOG.info("Removed {}".format(astcheck_file_fake))
+    
+    return
+
+
+# In[ ]:
+
+
 def retrieve_version(package_name):
     
     """
@@ -3192,6 +3133,122 @@ def copy_file(src_file, dest, move=False):
 
 # ### Subroutines for formatting & saving output and removing temporary files
 # Also includes functionality for Google cloud file systems
+
+# In[ ]:
+
+
+def convert_fits2mpc(transient_cat, mpcformat_file):
+    
+    """
+    Function converts the transient catalogue to a text file of the MPC
+    80-column format, so that astcheck can run on it. For the asteroid / comet
+    identifier used in the MPC file, the transient number is used. This
+    transient number cannot be used for MPC reports as it is not all-time unique
+    (per telescope). But it is a straight-forward way to link detections to
+    known solar system objects within match2SSO.
+    
+    Negative transients are excluded from the MPC-formatted file. In the case of
+    moving objects, these are sources that are present in the reference image
+    but not in the new image. They can be recognised as having a negative
+    signal-to-noise ratio value in the significance (Scorr) image for MeerLICHT
+    and BlackGEM. As reference images can be stacked images (that are not
+    centered on the asteroid) for which the observation date and time is
+    unclear, and as we use the date of the new image as the observation date,
+    asteroids in the reference images are not useful.
+    
+    Function returns the MPC Observatory code of the telescope with which the
+    observation was made, and a boolean indicating whether there were detections
+    to be converted (dummy = False) or not (dummy = True).
+    
+    Parameters:
+    -----------
+    transient_cat: string
+        Path to and name of the transient catalogue.
+    mpcformat_file: string
+        Path to and name of the MPC-formatted text file that is made in this
+        function.
+    """
+    #mem_use(label="at start of convert_fits2mpc")
+    LOG.info("Converting transient catalogue to MPC-format.")
+    if TIME_FUNCTIONS:
+        t_func = time.time()
+    
+    # Load transient catalogue header
+    with fits.open(transient_cat) as hdu:
+        transient_header = hdu[1].header
+    
+    # Get the MPC observatory code from the header
+    mpc_code = transient_header[MPC_CODE_KEYWORD].strip()
+    if mpc_code not in list(pd.read_fwf(settingsFile.obsCodesFile,
+                                        widths=[4, 2000],
+                                        skiprows=1)["Code"])[:-1]:
+        LOG.critical("MPC code {} is not in the MPC list of observatory codes"
+                     .format(mpc_code))
+        return None, True
+    
+    # Check if MPC-formatted file exists and if it should be overwritten or not
+    if not OVERWRITE_FILES and isfile(mpcformat_file):
+        LOG.info("MPC-formatted file already exists and will not re-made.")
+        return mpc_code, False
+    
+    # Get observation date in the right format
+    date_obs = Time(transient_header[DATE_KEYWORD], format="isot").datetime
+    decimal_day = date_obs.day + 1./24.*(
+        date_obs.hour + 1./60.*(date_obs.minute + 1./60.*(
+            date_obs.second + date_obs.microsecond/10.**6)))
+    mpc_char16to32 = "{} {:0>2} {:08.5f} ".format(date_obs.year, 
+                                                  date_obs.month, decimal_day)
+    # Load transient catalogue data
+    with fits.open(transient_cat) as hdu:
+        detections = Table(hdu[1].data)
+    
+    # Remove negative transients
+    index_positives = np.where(detections[SNR_COLUMN]>=0)[0]
+    detections = detections[index_positives]
+    
+    # Check if there are positive transients to include
+    if len(detections) == 0:
+        dummy = True
+        LOG.info("No (positive) sources available for linking.")
+        return mpc_code, dummy
+    dummy = False
+    
+    # Create output file
+    mpcformat_file_content = open(mpcformat_file, "w")
+    
+    # Loop over the detections and add data to the MPC-formatted file
+    for detection_index in range(len(detections)):
+        # Use the source numbers as "temporary designations" in the MPC format.
+        # In this way, we will be able to link the known objects to the right
+        # source.
+        line = ("     {:0>7}  C"
+                .format(detections[NUMBER_COLUMN][detection_index]))
+        line = "".join([line, mpc_char16to32])
+        
+        # Get the coordinates and magnitude of the source
+        coord = SkyCoord(detections[RA_COLUMN][detection_index],
+                         detections[DEC_COLUMN][detection_index],
+                         unit="deg", frame="icrs") 
+        mag = "{:.1f}".format(detections[MAG_COLUMN][detection_index])
+        
+        line = "".join([line, "{} {}          {} G      {}"
+                        .format(coord.to_string("hmsdms", sep=" ",
+                                                precision=2)[:11],
+                                coord.to_string("hmsdms", sep=" ",
+                                                precision=1)[-11:],
+                                mag.rjust(4), mpc_code)])
+        
+        # Write the data to the MPC-formatted file
+        mpcformat_file_content.write("{}\n".format(line))
+    
+    mpcformat_file_content.close()
+    
+    LOG.info("MPC-formatted file saved to {}.".format(mpcformat_file))
+    if TIME_FUNCTIONS:
+        log_timing_memory(t_func, label="convert_fits2mpc")
+    
+    return mpc_code, dummy
+
 
 # In[ ]:
 
