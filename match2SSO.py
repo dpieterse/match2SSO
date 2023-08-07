@@ -723,7 +723,8 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
     # Run astcheck on the MPC-formatted transient file
     astcheck_file = mpcformat_file.replace("_MPCformat.txt",
                                            "_astcheckMatches.txt")
-    run_astcheck(mpcformat_file, rundir, astcheck_file)
+    run_astcheck(mpcformat_file, rundir, astcheck_file,
+                 get_par(settingsFile.matchingRadius, TEL))
     
     # Save matches found by astcheck to an SSO catalogue
     create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso)
@@ -1319,8 +1320,8 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
 # In[ ]:
 
 
-def run_astcheck(mpcformat_file, rundir, output_file,
-                 matching_radius=get_par(settingsFile.matchingRadius, TEL)):
+def run_astcheck(mpcformat_file, rundir, output_file, matching_radius):
+    
     """
     Run astcheck on the input transient catalogue to find matches between
     transient detections and known solar system objects. Per detection, all
@@ -1342,8 +1343,7 @@ def run_astcheck(mpcformat_file, rundir, output_file,
         Path to and name of the output text file in which the matches found
         by astcheck are stored.
     matching_radius: int or float
-        Matching radius in arcsec. The default value is the one specified in
-        the settings file [set_match2SSO.py].
+        Matching radius in arcsec.
     """
     #mem_use(label="at start of run_astcheck")
     LOG.info("Running astcheck: matching detections to known solar system "
