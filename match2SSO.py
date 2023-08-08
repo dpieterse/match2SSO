@@ -111,8 +111,9 @@ TIME_FUNCTIONS = bool(settingsFile.time_functions)
 # In[ ]:
 
 
-def run_match2SSO(tel, mode, cat2process, date2process, list2process,
-                  logname, redownload, overwrite):
+def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
+                  list2process=None, logname=None, redownload=True,
+                  overwrite=False):
     """
     Run match2SSO on the input catalogue(s)/date. match2SSO can be run in
     different mode / date2process / cat2process / list2process combinations.
@@ -205,7 +206,7 @@ def run_match2SSO(tel, mode, cat2process, date2process, list2process,
     
     elif mode == "historic" or "hist":
         hist_mode(cat2process, date2process, list2process, night_start,
-                  input_folder, tmp_folder, report_folder)
+                  input_folder, tmp_folder, report_folder, redownload)
     
     LOG.info("Finished running match2SSO.")
     log_timing_memory(t_glob, label="run_match2SSO")
@@ -291,8 +292,10 @@ def day_mode(night_start, tmp_folder, redownload_db):
     
     # Create CHK files that astcheck needs in advance, to allow parallelisation
     # in the night mode
-    create_chk_files(night_start, "night_start", rundir)
-    create_chk_files(night_start + timedelta(days=1), "night_end", rundir)
+    mpc_code = get_par(settingsFile.mpc_code, TEL)
+    create_chk_files(night_start, "night_start", mpc_code, rundir)
+    create_chk_files(night_start + timedelta(days=1), "night_end", mpc_code,
+                     rundir)
     
     # Check for known object database products
     if not find_database_products(rundir):
@@ -348,6 +351,8 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder):
     if not find_database_products(rundir):
         logging.shutdown()
         return
+    asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
+    LOG.info("Using database {}".format(asteroid_database))
     
     # Check for CHK files
     night_start_utc = get_night_start_from_date(cat_name, "utc")
@@ -485,7 +490,7 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
     if cat_name:
         LOG.info("Running historic mode on transient catalogue: \n{}"
                  .format(cat_name))
-        catalogues2process = (cat_name)
+        catalogues2process = [cat_name]
     
     elif date:
         LOG.info("Running historic mode on night {}".format(date))
@@ -545,6 +550,10 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     if not os.path.isdir(rundir):
         os.makedirs(rundir)
     
+    if not redownload_db and isfile("{}MPCORB.DAT".format(rundir)):
+        asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
+        LOG.info("Using database {}".format(asteroid_database))
+    
     #Run matching per catalogue
     make_kod = True
     for cat_name in catalogues_single_night:
@@ -557,11 +566,11 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     #Remove the run directory after processing the last catalogue of the night
     if not KEEP_TMP:
         #Remove integrated database made for this night
-        if isfile("{}MPCORB.DAT".format(rundir)):
-            asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
-            if "epoch" in asteroid_database:
-                os.remove(asteroid_database)
-                LOG.info("Removed {}".format(asteroid_database))
+        #if isfile("{}MPCORB.DAT".format(rundir)):
+        #    asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
+        #    if "epoch" in asteroid_database:
+        #        os.remove(asteroid_database)
+        #        LOG.info("Removed {}".format(asteroid_database))
         
         #Remove temporary folder made for this night
         remove_tmp_folder(rundir)
@@ -619,6 +628,9 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
         t_func = time.time()
     LOG.info("Running match2SSO on {}".format(cat_name))
     
+    # Keep track of whether known object database has been made
+    made_kod = False
+    
     # Check if input catalogue exists and is not flagged red
     is_existing, is_dummy, cat_name = check_input_catalogue(cat_name)
     if not is_existing:
@@ -634,9 +646,6 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
                                                         "_sso_predict.fits")
     reportname = "{}{}.txt".format(
         report_folder, os.path.basename(sso_cat).replace(".fits", "_report"))
-    
-    # Keep track of whether known object database has been made
-    made_kod = False
     
     # Create predictions and SSO catalogues in case of a dummy (empty) detection
     # catalogue
@@ -1112,11 +1121,8 @@ def integrate_database(asteroid_database, asteroid_database_version,
     if TIME_FUNCTIONS:
         t_subtiming = time.time()
     
-    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
-    LOG.info("Integrating asteroid database to epoch {}..."
-             .format(midnight_utc_str))
-    
     # Define integrated asteroid database name
+    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
     integrated_asteroid_database = (
         "{}asteroidDB_version{}_epoch{}.dat"
         .format(tmp_folder, asteroid_database_version, midnight_utc_str))
@@ -1124,6 +1130,9 @@ def integrate_database(asteroid_database, asteroid_database_version,
     # If file exists, there is no reason to remake it
     if isfile(integrated_asteroid_database):
         return integrated_asteroid_database
+    
+    LOG.info("Integrating asteroid database to epoch {}..."
+             .format(midnight_utc_str))
     
     # Integrate database
     subprocess.run(["integrat", asteroid_database, integrated_asteroid_database,
@@ -1238,6 +1247,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
         field_radius = 3600.*sqrt(2)*get_par(settingsFile.FOV_width, TEL)/2.
     
     # Run astcheck from folder containing .sof-file
+    LOG.info("Running astcheck and saving results to (tmp) txt file")
     subprocess.call([
         "astcheck", "-c", str(date), str(ra_field), str(dec_field),
         str(mpc_code), "-r{}".format(field_radius), "-h",
@@ -1280,6 +1290,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
         output_row = (identifier, float(ra_source), float(dec_source),
                       float(v_ra), float(v_dec), float(magnitude))
         output_table.add_row(output_row)
+    LOG.info("Created fits catalogue with predictions")
     
     # Remove temporary astcheck output file
     if not KEEP_TMP:
@@ -1511,7 +1522,6 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     # Add keyword indicating whether there is
     header["SDUMCAT"] = (bool(dummy), "dummy SSO catalogue without sources?")
     
-    LOG.info("SSO header complete.")
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="create_sso_header")
     
@@ -1759,6 +1769,8 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     # For each detection that was matched to a known solar system object,
     # get the packed designation of the matching object and write the detection
     # to the report
+    LOG.info("Writing detections to report")
+    Nlines = 0
     for match_index in range(len(sso_cat_content[number_column])):
         designation = sso_cat_content["ID_SSO"][match_index].strip()
         
@@ -1801,8 +1813,10 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
             LOG.error("Detection not formatted correctly in 80 columns:\n{}"
                       .format(detection_line))
         report_content.write(detection_line+"\n")
+        Nlines += 1
     
     report_content.close()
+    LOG.info("Saved {} detections to MPC report".format(Nlines))
     
     # Move report from run directory to final destination
     LOG.info("Moving report to {}".format(destination))
@@ -1864,7 +1878,6 @@ def create_report_header(reportname, mpc_code, comment=None):
         else:
             com_line = "COM {}\n".format(comment)
     
-    LOG.info("MPC report header complete.")
     if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="create_report_header")
     
@@ -1937,10 +1950,10 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date,
             # Get observing date (defined to start at noon and end at noon the
             # next day)
             minday = minimal_date.day
-            if minday.hour < 12.:
+            if minimal_date.hour < 12.:
                 minday -= 1
             maxday = maximal_date.day
-            if maxday.hour < 12.:
+            if maximal_date.hour < 12.:
                 maxday -= 1
             
             if minday == maxday:
@@ -2741,7 +2754,7 @@ def remove_astcheck_header_and_footer(astcheck_file_content):
 # In[ ]:
 
 
-def create_chk_files(noon, noon_type, rundir):
+def create_chk_files(noon, noon_type, mpc_code, rundir):
     
     """
     Function that creates the CHK files that astcheck uses (and produces if
@@ -2770,6 +2783,8 @@ def create_chk_files(noon, noon_type, rundir):
     noon_type: string
         Should be either "night_start" or "night_end", depending on which noon
         was given as input.
+    mpc_code: string
+        MPC code of the telescope with which the observation was made.
     rundir: string
         Directory in which astcheck is run. This directory should contain
         the mpc2sof catalogue that contains the known solar system objects.
@@ -2797,7 +2812,7 @@ def create_chk_files(noon, noon_type, rundir):
     fake_detection = "".join([
         "     0000001  C{} {:0>2} {:08.5f} "
         .format(obstime.year, obstime.month, obstime.day),
-        "00 00 00.00 +00 00 00.0          0.00 G      L66"
+        "00 00 00.00 +00 00 00.0          0.00 G      {}".format(mpc_code)
         ])
     mpcformat_file_fake_content.write(fake_detection)
     mpcformat_file_fake_content.close()

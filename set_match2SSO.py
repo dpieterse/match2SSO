@@ -37,6 +37,9 @@ time_functions = True
 
 
 # Directory structure
+"""
+Beware: in the Google cloud, the tmpFolder should be on a VM, NOT in a bucket
+"""
 runFolderBase = {}; runFolder = {}; inputFolder={}; tmpFolder={}; logFolder={};
 MPCreportFolder={}
 for tel in ["ML1"]:
@@ -105,7 +108,7 @@ FOV. For a circular FOV, the FOV_width is the diameter of the circle.
 """
 timeZoneTelescope = {"ML": "Africa/Johannesburg", "BG": "America/Santiago"}
 FOV_width = 1.6544 # Size of the FOV in degrees
-
+mpc_code = {"ML1": "L66", "BG": "809"} # only used in day mode
 
 # Maximal orbital uncertainty parameter
 """
