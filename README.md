@@ -3,7 +3,7 @@ Python code to match ***single*** telescope detections to ***known solar system 
 
 Asteroid matching is done by default. Comet matching is only done when ```include_comets = True``` (in the settings file). Currently, comet matching is not performed by default, as a selection based on orbital uncertainty is less straight forward for comets and Bill Gray's _integrat.cpp_ does not work on JPL's comet database.
 
-_match2SSO_ was created for the [MeerLICHT](http://www.meerlicht.uct.ac.za/) & [BlackGEM](https://astro.ru.nl/blackgem/) telescopes. Originally written in Jupyter Notebook, it's also available as an executable Python script. It's compatible with MeerLICHT's image processing software (BlackBOX & ZOGY) version 1.0.0 and up.
+_match2SSO_ was created for the [MeerLICHT](http://www.meerlicht.uct.ac.za/) & [BlackGEM](https://astro.ru.nl/blackgem/) telescopes. The code is available as a Python script. It's compatible with MeerLICHT's image processing software (BlackBOX & ZOGY) version 1.0.0 and up.
 
 _match2SSO_ makes grateful use of the [_lunar_](https://github.com/Bill-Gray/lunar) and [_jpl_eph_](https://github.com/Bill-Gray/jpl_eph) repositories that were written by Bill Gray under Project Pluto. The core of _match2SSO_ is [_astcheck_](https://www.projectpluto.com/astcheck.htm): a C++ script in the _lunar_ repository that matches detections to known solar system objects.
 
@@ -32,7 +32,7 @@ In addition, _match2SSO_ uses MPCORB.DAT (MPC's asteroid database) and COMET.ELE
 
 
 ## Running match2SSO
-Run the _match2SSO.py_ script from the command line. Alternatively, the code is available in a Jupyter Notebook. It can be run in three modes:
+Run the _match2SSO.py_ script from the command line. It can be run in three modes:
 - Historic mode: run on existing data. 
 - Day mode: needs to be executed once before the start of an observing night, to allow the night mode to be run in real-time during that night. Allows speedy and parallelized processing in night mode.
 - Night mode: run during the observing run (in real time) on a single detection catalogue. Needs the products made during the day mode.
