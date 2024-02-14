@@ -79,6 +79,7 @@ colNumber = "NUMBER" # Source number, unique within the catalogue
 colRA = "RA_PSF_D"   # [deg]
 colDec = "DEC_PSF_D" # [deg]
 colMag = "MAG_ZOGY"
+colFlux = "FNU_ZOGY" # [micro Jy], only needed if magnitude column doesn't exist
 colSNR = "SNR_ZOGY"  # Negative values are negative transients (to reject)
 
 

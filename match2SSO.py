@@ -35,7 +35,7 @@
 # In[ ]:
 
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.1.0"
 
@@ -3202,6 +3202,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
         detections = Table(hdu[1].data)
     number_column = get_par(settingsFile.colNumber, TEL)
     mag_column = get_par(settingsFile.colMag, TEL)
+    flux_column = get_par(settingsFile.colFlux, TEL)
     snr_column = get_par(settingsFile.colSNR, TEL)
     
     # Remove negative transients
@@ -3227,22 +3228,28 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
                 .format(detections[number_column][detection_index]))
         line = "".join([line, mpc_char16to32])
         
-        # Get the coordinates and magnitude of the source
+        # Get the coordinates of the source
         ra_column = get_par(settingsFile.colRA, TEL)
         dec_column = get_par(settingsFile.colDec, TEL)
         coord = SkyCoord(detections[ra_column][detection_index],
                          detections[dec_column][detection_index],
-                         unit="deg", frame="icrs") 
-        mag = "{:.1f}".format(detections[mag_column][detection_index])
+                         unit="deg", frame="icrs")
         
+        # Get the magnitude of the source
+        if mag_column in detections.colnames:
+            magvalue = detections[mag_column][detection_index]
+        else:
+            fluxvalue = detections[flux_column][detection_index]
+            magvalue = -2.5*np.log10(fluxvalue) + 23.9
+        mag = "{:.1f}".format(magvalue)
+        
+        # Write the data to the MPC-formatted file
         line = "".join([line, "{} {}          {} G      {}"
                         .format(coord.to_string("hmsdms", sep=" ",
                                                 precision=2)[:11],
                                 coord.to_string("hmsdms", sep=" ",
                                                 precision=1)[-11:],
                                 mag.rjust(4), mpc_code)])
-        
-        # Write the data to the MPC-formatted file
         mpcformat_file_content.write("{}\n".format(line))
     
     mpcformat_file_content.close()
