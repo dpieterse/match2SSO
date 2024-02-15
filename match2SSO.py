@@ -3240,7 +3240,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
             magvalue = detections[mag_column][detection_index]
         else:
             fluxvalue = detections[flux_column][detection_index]
-            magvalue = -2.5*np.log10(fluxvalue) + 23.9
+            magvalue = -2.5*np.log10(np.abs(fluxvalue)) + 23.9
         mag = "{:.1f}".format(magvalue)
         
         # Write the data to the MPC-formatted file
