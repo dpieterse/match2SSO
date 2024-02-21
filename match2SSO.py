@@ -3,7 +3,7 @@
 
 # # match2SSO
 # * Running instructions are given at the start of function run_match2SSO
-# * Originally written as a Jupyter Notebook using Python 3.8.10
+# * Written in Python 3.8.10
 # * Compatible with MeerLICHT / BlackGEM observations
 # * Compatible with BlackBOX / ZOGY version 1.0.0 and up (image processing
 #   pipeline of MeerLICHT & BlackGEM)
@@ -12,8 +12,8 @@
 # Output (SSO) catalogue columns and header keywords are listed here:
 # https://www.overleaf.com/read/zrhqwcbkfqns
 # 
-# <i>match2SSO</i> makes grateful use of the <i>lunar</i> and 
-# <i>jpl_eph</i> repositories that were written by Bill Gray under 
+# <i>match2SSO</i> makes grateful use of the <i>lunar</i> and
+# <i>jpl_eph</i> repositories that were written by Bill Gray under
 # Project Pluto. The core of <i>match2SSO</i> is <i>astcheck</i>: a C++
 # script in the <i>lunar</i> repository that matches detections to known
 # solar system objects. More information on <i>astcheck</i> can be found
@@ -29,13 +29,17 @@
 # In addition, <i>match2SSO</i> uses MPCORB.DAT (MPC's asteroid database) and
 # COMET.ELEMENTS (JPL's comet database), but these are downloaded when
 # running the script and hence do not need to be pre-downloaded.
+# 
+# Note on terminology: we use 'database' for files containing the orbital elements
+# of known solar system objects. We use 'catalogue' for files containing
+# detections of objects.
 
 # ## Python packages and settings
 
 # In[ ]:
 
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.1.0"
 
@@ -49,6 +53,7 @@ import re
 import sys
 import glob
 import time
+import json
 import argparse
 import logging
 import resource
@@ -105,7 +110,7 @@ TIME_FUNCTIONS = bool(settingsFile.time_functions)
 # Run <i>match2SSO</i> by calling wrapper function run_match2SSO(). That function
 # runs <i>match2SSO</i> in day/night/historic mode by calling the appropriate
 # wrapper function defined in this section. The day & historic modes in turn call
-# other wrapper functions - match_catalogues_single_night() and 
+# other wrapper functions - match_catalogues_single_night() and
 # match_single_catalogue() - also defined in this section.
 
 # In[ ]:
@@ -128,10 +133,10 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
     Parameters:
     -----------
     tel: string
-        Abbreviated telescope name. Used in the settings file for 
+        Abbreviated telescope name. Used in the settings file for
         telescope-dependent variables.
     mode: string
-        Mode in which match2SSO is run. This can be 'day', 'night' or 
+        Mode in which match2SSO is run. This can be 'day', 'night' or
         'historic'.
     cat2process: string
         Path to and name of the transient catalogue that is to be processed.
@@ -225,18 +230,19 @@ def day_mode(night_start, tmp_folder, redownload_db):
     creates the known objects database & CHK files for the upcoming night, or
     - in case [date] is specified - for the specified night.
       0) Creates a run directory in preparation of the nightly processing.
-      1) Downloads asteroid and comet databases to the database folder.
-      2) Integrates the asteroid database to midnight of the observation night.
-      3) Combines the comet and integrated asteroid databases into a SOF-
-         formatted known objects database.
+      1) Downloads asteroid and comet databases to tmp_folder.
+      2) Combines the comet and asteroid databases into a SOF-formatted known
+         objects database.
+      3) Integrates the known objects database to midnight of the observation
+         night.
       4) Creates symbolic links to the used databases and the observatory codes
          list in the run directory.
       5) Runs astcheck on a fake detection in order to create the CHK files
          that astcheck will need for faster processing when running on
          observations.
       6) Removes the fake detection in- & output, excluding the CHK files.
-    Products of steps 1-2 are saved to the database folder, those of steps 3-5
-    to the run directory.
+    Products of steps 1-3 are saved to tmp_folder, those of steps 4-5 to the run
+    directory.
     
     Parameters:
     -----------
@@ -266,12 +272,11 @@ def day_mode(night_start, tmp_folder, redownload_db):
     #    night_previous = (night_start - timedelta(days=1)).strftime("%Y%m%d")
     #    rundir_previous = "{}{}/".format(tmp_folder, night_previous)
     #    
-    #    if isfile("{}MPCORB.DAT".format(rundir_previous)):
-    #        asteroid_database = os.readlink("{}MPCORB.DAT"
-    #                                        .format(rundir_previous))
-    #        if "epoch" in asteroid_database:
-    #            os.remove(asteroid_database)
-    #            LOG.info("Removed {}".format(asteroid_database))
+    #    if isfile("{}mpcorb.sof".format(rundir_previous)):
+    #        sso_database = os.readlink("{}mpcorb.sof".format(rundir_previous))
+    #        if "epoch" in sso_database:
+    #            os.remove(sso_database)
+    #            LOG.info("Removed {}".format(sso_database))
     #    remove_tmp_folder(rundir_previous)
     
     # Create a run directory corresponding to the observation night
@@ -319,10 +324,14 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder):
     cannot be parallelised (making known objects database and CHK files) have
     already been executed in the day mode. The night mode:
       1) Converts the transient catalogue into an MPC-formatted text file.
-      2) Runs astcheck on that file, to find matches between the transient
-         detections and known solar system objects.
-      3) Makes an SSO catalogue containing the matches.
-      4) Makes an MPC report of the matches.
+      2) Runs astcheck on the central coordinates of the observation, to make
+         predictions on the known solar system objects in the FOV.
+      3) Makes a prediction catalogue of the known solar system objects in the
+         FOV during the observation.
+      4) Runs astcheck on the MPC-formatted text file, to find matches between
+         the detections and known solar system objects.
+      5) Makes an SSO catalogue containing the matches.
+      6) Makes an MPC report of the matches.
     Running the night mode in parallel on multiple catalogues can be done by
     calling match2SSO (with --mode night) multiple times in parallel.
     
@@ -351,8 +360,8 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder):
     if not find_database_products(rundir):
         logging.shutdown()
         return
-    asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
-    LOG.info("Using database {}".format(asteroid_database))
+    sso_database = os.readlink("{}mpcorb.sof".format(rundir))
+    LOG.info("Using database {}".format(sso_database))
     
     # Check for CHK files
     night_start_utc = get_night_start_from_date(cat_name, "utc")
@@ -395,17 +404,17 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
     
     """
     The historic mode does the entire processing of match2SSO, including the
-    preparation of the known objects databases. The historic mode can be run on
-    a single transient catalogue, an entire night of observations or a list of
+    preparation of the known objects database. The historic mode can be run on a
+    single transient catalogue, an entire night of observations or a list of
     transient catalogues (possibly spanning multiple nights).
     
     For the first catalogue that is processed of each observation night, the
     code:
       0) Creates a run directory in preparation of the processing.
-      1) Downloads asteroid and comet databases to the database folder.
-      2) Integrates the asteroid database to midnight of the observation night.
-      3) Combines the comet and integrated asteroid databases into a SOF-
-         formatted known objects database.
+      1) Downloads asteroid and comet databases to tmp_folder. [optional]
+      2) Combines the comet and asteroid databases into a SOF-formatted known
+         objects database.
+      3) Integrates the known objects database to midnight of the observation night.
       4) Creates symbolic links to the used databases and the observatory codes
          list in the run directory.
     The asteroid and comet databases used for this are only downloaded once per
@@ -415,12 +424,16 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
     
     For all transient catalogues, the code then:
       5) Converts the transient catalogue into an MPC-formatted text file.
-      6) Runs astcheck on that file, to find matches between the transient
-         detections and known solar system objects.
-      7) Makes an SSO catalogue containing the matches.
-      8) Makes an MPC report of the matches.
+      6) Runs astcheck on the central coordinates of the observation, to make
+         predictions on the known solar system objects in the FOV.
+      7) Makes a prediction catalogue of the known solar system objects in the
+         FOV during the observation.
+      8) Runs astcheck on the MPC-formatted text file, to find matches between
+         the detections and known solar system objects.
+      9) Makes an SSO catalogue containing the matches.
+     10) Makes an MPC report of the matches.
     
-    The historic mode can only be parallelised if there is no overlap in 
+    The historic mode can only be parallelised if there is no overlap in
     observing nights.
     
     Parameters:
@@ -444,7 +457,7 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
     report_folder: string
         Name of the folder in which the MPC reports will be stored.
     redownload_db: boolean
-        Boolean to indicate whether the asteroid (and comet) databases should be
+        Boolean to indicate whether the asteroid and comet databases should be
         redownloaded. Alternatively the most recently downloaded databases will
         be used.
     Beware that exactly two of the variables (cat_name, date, catlist) need to
@@ -550,9 +563,9 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     if not os.path.isdir(rundir):
         os.makedirs(rundir)
     
-    if not redownload_db and isfile("{}MPCORB.DAT".format(rundir)):
-        asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
-        LOG.info("Using database {}".format(asteroid_database))
+    if not redownload_db and isfile("{}mpcorb.sof".format(rundir)):
+        sso_database = os.readlink("{}mpcorb.sof".format(rundir))
+        LOG.info("Using database {}".format(sso_database))
     
     #Run matching per catalogue
     make_kod = True
@@ -566,11 +579,11 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     #Remove the run directory after processing the last catalogue of the night
     if not KEEP_TMP:
         #Remove integrated database made for this night
-        #if isfile("{}MPCORB.DAT".format(rundir)):
-        #    asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
-        #    if "epoch" in asteroid_database:
-        #        os.remove(asteroid_database)
-        #        LOG.info("Removed {}".format(asteroid_database))
+        #if isfile("{}mpcorb.sof".format(rundir)):
+        #    sso_database = os.readlink("{}mpcorb.sof".format(rundir))
+        #    if "epoch" in sso_database:
+        #        os.remove(sso_database)
+        #        LOG.info("Removed {}".format(sso_database))
         
         #Remove temporary folder made for this night
         remove_tmp_folder(rundir)
@@ -591,8 +604,8 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
     known objects database is created where the reference epoch corresponds to
     midnight on the observation night. The detections in the transient 
     catalogue are then matched to the positions of the solar system bodies in
-    the known objects catalogue. Matches are saved to an SSO catalogue.
-    Function returns a boolean indicating whether a known objects catalogue was
+    the known objects database. Matches are saved to an SSO catalogue. The
+    function returns a boolean indicating whether a known objects database was
     (successfully) made.
     
     Parameters:
@@ -759,20 +772,20 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
 
 
 # ## Core routines in match2SSO
-# * Create known objects catalogue (with asteroids with a max. orbital
+# * Create known objects database (with asteroids with a max. orbital
 #   uncertainty)
 # * Create catalogue with predictions of asteroids in the FOV
 # * Convert transient catalogue to MPC format
 # * Run matching algorithm (astcheck) on file made in previous step
 # * Save solar system object detections (matches) to SSO catalogue
-# * Create MPC report
+# * Create MPC report to allow one to report observations to the MPC
 
-# ### Step 1: create known objects catalogue
+# ### Step 1: create known objects database
 # Call wrapper function create_known_objects_database() to either select an existing database or to:
 # - Download asteroid & comet databases
 # - Discard asteroids with high orbital uncertainties
-# - Integrate the asteroid database to the observation epoch
 # - Combine asteroid & comet databases into one 'known objects' database
+# - Integrate the known objects database to the observation epoch
 
 # In[ ]:
 
@@ -784,22 +797,15 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
     
     Function downloads the most recent versions of the asteroid database and
     the comet database. It then uses integrat.cpp from the lunar repository to
-    integrate the asteroid orbits to midnight of the observation night, in
-    order to optimize the predicted positions of known objects.
-    
-    Beware: the current version of integrat.cpp cannot be used on JPL's comet
-    file, as it is not compatible with its format. As a consequence, there
-    might be an offset in the predictions of the comet positions, perhaps
-    causing us to miss these objects in the linking routine. Note that the
-    MPC's comet file could be integrated to the right epoch using integrat.cpp,
-    but as this file is not compatible with astcheck, it cannot be used here.
+    integrate the orbits to midnight of the observation night, in order to
+    optimize the predicted positions of known objects.
     
     Parameters:
     -----------
     midnight: datetime object, including time zone
         Local midnight during the observation night.
     rundir: string
-        Directory in which mpc2sof is run and which the known objects catalogue
+        Directory in which mpc2sof is run and which the known objects database
         is saved to.
     tmp_folder: string
         Folder to save the known objects databases to that are created in this
@@ -813,14 +819,16 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
     if TIME_FUNCTIONS:
         t_func = time.time()
     
-    # Download asteroid database
+    
+    # Downloading and naming asteroid & comet databases
+    # - Download asteroid database
     asteroid_database, asteroid_database_version = download_database(
         "asteroid", redownload_db, tmp_folder)
     
-    # Download comet database if requested
+    # - Download comet database if requested
     if INCLUDE_COMETS:
-        _, comet_database_version = download_database("comet", redownload_db,
-                                                      tmp_folder)
+        comet_database, comet_database_version = download_database(
+            "comet", redownload_db, tmp_folder)
     else:
         LOG.info("Do not download comet database. Instead, create an empty "
                  "comet database so that there's no matching to comets.")
@@ -830,26 +838,14 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
             "---------------------------------------- ------- ----------- ---",
             "------- --------- --------- --------- -------------- ------------"
             ]))
+        comet_database_version = None
     
-    # Integrat only accepts UTC midnights. Choose the one closest to local
-    # midnight.
-    date_midnight = midnight.date()
-    if midnight.hour >= 12.:
-        date_midnight = date_midnight + timedelta(days=1)
-    midnight_utc = pytz.utc.localize(datetime.strptime(" ".join([
-        date_midnight.strftime("%Y%m%d"), "000000"]), "%Y%m%d %H%M%S"))
-    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
-    
-    # Integrate asteroid database to local midnight
-    integrated_asteroid_database = integrate_database(
-        asteroid_database, asteroid_database_version, midnight_utc, tmp_folder)
-    
-    # Create the symbolic links in the run directory that mpc2sof needs
+    # - Create the symbolic links in the run directory that mpc2sof needs
     symlink_asteroid_database = "{}MPCORB.DAT".format(rundir)
     if isfile(symlink_asteroid_database):
         LOG.info("Removing the old MPCORB.DAT symbolic link")
         os.unlink(symlink_asteroid_database)
-    os.symlink(integrated_asteroid_database, symlink_asteroid_database)
+    os.symlink(asteroid_database, symlink_asteroid_database)
     LOG.info("Created symbolic link {}".format(symlink_asteroid_database))
     
     if INCLUDE_COMETS:
@@ -857,18 +853,45 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
         if isfile(symlink_comet_database):
             LOG.info("Removing the old ELEMENTS.COMET symbolic link")
             os.unlink(symlink_comet_database)
-        os.symlink("{}cometDB_version{}.dat".format(
-            tmp_folder, comet_database_version), symlink_comet_database)
+        os.symlink(comet_database, symlink_comet_database)
         LOG.info("Created symbolic link {}".format(symlink_comet_database))
-    #mem_use(label="after creating symbolic links to the databases")
     
-    # Combine the known comets and asteroids into a SOF file, which astcheck
-    # will then use as input
-    LOG.info("Combining asteroids and comets into SOF file.")
+    
+    # Integrating known objects database
+    # - Combine the known comets and asteroids into a SOF file, which integrat
+    #   will then use as input
+    LOG.info("Combining asteroids and comets into knownSSOs.sof file.")
     t_subtiming = time.time()
     subprocess.run("mpc2sof", cwd=rundir, check=True)
+    os.rename("{}mpcorb.sof".format(rundir), "{}knownSSOs.sof".format(rundir))
     if TIME_FUNCTIONS:
         log_timing_memory(t_subtiming, label="mpc2sof")
+    
+    # - Integrat only accepts UTC midnights. Choose the one closest to local
+    #   midnight.
+    date_midnight = midnight.date()
+    if midnight.hour >= 12.:
+        date_midnight = date_midnight + timedelta(days=1)
+    midnight_utc = pytz.utc.localize(datetime.strptime(" ".join([
+        date_midnight.strftime("%Y%m%d"), "000000"]), "%Y%m%d %H%M%S"))
+    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
+    
+    # - Integrate known objects database to local midnight
+    integrated_database = integrate_database(
+        "{}knownSSOs.sof".format(rundir), asteroid_database_version,
+        comet_database_version, midnight_utc, tmp_folder)
+    
+    
+    # Create a symbolic link to direct "mpcorb.sof" to the integrated database,
+    # which astcheck will need as input
+    symlink_integrated_database = "{}mpcorb.sof".format(rundir)
+    if isfile(symlink_integrated_database):
+        LOG.info("Removing the old mpcorb.sof symbolic link")
+        os.unlink(symlink_integrated_database)
+    os.symlink(integrated_database, symlink_integrated_database)
+    LOG.info("Created symbolic link {}".format(symlink_integrated_database))
+    
+    if TIME_FUNCTIONS:
         log_timing_memory(t_func, label="create_known_objects_database")
     
     LOG.info("Finished loading and formatting external databases.")
@@ -882,32 +905,23 @@ def use_existing_database(databaselist, sso_type):
     
     """
     Select the most recently downloaded unintegrated asteroid/comet database
-    from the input list [databaselist], by the database's name. If there is no
-    unintegrated database, select the most recent integrated one. Empty
-    databases (created when INCLUDE_COMETS = False) should not be in the input
-    list.
+    from the input list [databaselist], by the database's name. Empty databases
+    (created when INCLUDE_COMETS = False) should not be in the input list.
     The function returns the database name & version.
     
     Parameters:
     -----------
     databaselist: list of strings
         List of the asteroid / comet databases that were downloaded previously.
-        This can include different database versions and/or integrated to
-        different epochs.
+        This can include different database versions.
     sso_type: string
         Type of database: asteroid or comet
     """
     LOG.info("Selecting {} database that was downloaded in a previous run."
              .format(sso_type))
     
-    # Select unintegrated databases only if available and sort on name
-    unintegrated_databases = [DB for DB in databaselist if "epoch" not in DB]
-    databases_sorted = sorted(unintegrated_databases)
-    if not databases_sorted:
-        databases_sorted = sorted(databaselist)
-    
     # Select most recently downloaded database
-    database_name = databases_sorted[-1]
+    database_name = sorted(databaselist)[-1]
     
     # Retrieve database version from database name
     database_version = os.path.splitext(
@@ -971,9 +985,11 @@ def download_database(sso_type, redownload_db, tmp_folder):
     open(database_name, "wb").write(req.content)
     LOG.info("{} database version: {}".format(sso_type, database_version))
     
-    # Remove asteroids with large orbital uncertainties from database
+    # Remove objects with large orbital uncertainties from database
     if sso_type == "asteroid":
         select_asteroids_on_uncertainty(database_name)
+    elif sso_type == "comet":
+        select_comets_on_uncertainty(database_name)
     
     # Compare database size to that of a previously downloaded database, as a
     # crude check whether the database was downloaded fully. As both databases
@@ -1020,8 +1036,9 @@ def select_asteroids_on_uncertainty(asteroid_database):
     
     """
     Go through the asteroid database (MPCORB format) and select the asteroids
-    which have orbital uncertainty parameters smaller than maxUncertainty.
-    The MPC uncertainty parameters that we consider are explained here:
+    which have orbital uncertainty parameters less than or equal to
+    maxUncertainty (see set_match2SSO.py). The MPC uncertainty parameters that
+    we consider are explained here:
     https://www.minorplanetcenter.net/iau/info/UValue.html
     
     Overwrite the database with just the asteroids selected on their orbital
@@ -1044,11 +1061,11 @@ def select_asteroids_on_uncertainty(asteroid_database):
         t_func = time.time()
     LOG.info("Removing asteroids with too large uncertainties...\n")
     
-    #Open asteroid database
+    # Open asteroid database
     asteroid_database_content = open(asteroid_database, "r").readlines()
     
-    #Find the size of the header of the asteroid database, assuming that the
-    #header ends with a line of dashes.
+    # Find the size of the header of the asteroid database, assuming that the
+    # header ends with a line of dashes.
     header_end_index = 0
     line_index = 0
     for line in asteroid_database_content:
@@ -1057,8 +1074,8 @@ def select_asteroids_on_uncertainty(asteroid_database):
             break
         line_index += 1
     
-    #Re-write the asteroid database file, including only the header and the
-    #lines corresponding to asteroids that have small orbital uncertainties.
+    # Re-write the asteroid database file, including only the header and the
+    # lines corresponding to asteroids that have small orbital uncertainties.
     number_asteroids_pre_selection = 0
     number_asteroids_post_selection = 0
     with open(asteroid_database, "w") as asteroid_database_content_new:
@@ -1079,8 +1096,8 @@ def select_asteroids_on_uncertainty(asteroid_database):
             
             number_asteroids_pre_selection += 1
             
-            #Filter on uncertainty parameter. Copy lines of asteroids for
-            #which orbits are determined reasonably well.
+            # Filter on uncertainty parameter. Copy lines of asteroids for
+            # which orbits are determined reasonably well.
             uncertainty = line[105]
             if uncertainty.isdigit():
                 if float(uncertainty) <= u_max:
@@ -1100,18 +1117,107 @@ def select_asteroids_on_uncertainty(asteroid_database):
 # In[ ]:
 
 
-def integrate_database(asteroid_database, asteroid_database_version,
-                       midnight_utc, tmp_folder):
+def select_comets_on_uncertainty(comet_database):
+    
     """
-    Function integrates MPCORB database to the observation epoch and saves the
-    integrated database to a .dat file. It returns the name of this file.
+    First query the JPL database to retrieve the names of the comets that have
+    an MPC uncertainty parameter less than or equal to maxUncertainty (see
+    set_match2SSO.py). The MPC uncertainty parameters that we consider are
+    explained here: https://www.minorplanetcenter.net/iau/info/UValue.html
+    Then crossmatch the comet database (which we downloaded before) with this
+    list of names. Overwrite the database with just the comets selected on their
+    orbital uncertainties, so that there will be no matching with poorly known
+    objects.
     
     Parameters:
     -----------
-    asteroid_database: string
-        Name of the asteroid database that is to be integrated.
+    comet_database: string
+        Name of the previously downloaded full comet database.
+    """
+    #mem_use(label="at start of select_comets_on_uncertainty")
+    
+    u_max = get_par(settingsFile.maxUncertainty, TEL)
+    if u_max is None:
+        LOG.info("All known solar system bodies are used in the matching, "
+                 "irrespective of their uncertainty parameter.")
+        return
+    
+    if TIME_FUNCTIONS:
+        t_func = time.time()
+    LOG.info("Removing comets with too large uncertainties...\n")
+    
+    # Query the JPL database to select comets with well-determined orbits
+    url = ('https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=full_name&'
+           'sb-kind=c&sb-cdata={"AND":["condition_code|LT|%s"]}' %str(u_max+1))
+    req = requests.get(url, allow_redirects=True)
+    comets2select = [item.strip() for sublist in json.loads(req.content)['data']
+                     for item in sublist]
+    
+    # Open comet database
+    comet_database_content = open(comet_database, "r").readlines()
+    
+    # Find the size of the header of the comet database, assuming that the
+    # header ends with a line of dashes.
+    header_end_index = 0
+    line_index = 0
+    for line in comet_database_content:
+        if line.startswith("-----"):
+            header_end_index = line_index
+            break
+        line_index += 1
+    
+    # Re-write the comet database file, including only the header and the
+    # lines corresponding to comets that have small orbital uncertainties (and
+    # thus are in the [comets2select] list).
+    number_comets_pre_selection = 0
+    number_comets_post_selection = 0
+    with open(comet_database, "w") as comet_database_content_new:
+        for line_index in range(len(comet_database_content)-1):
+            
+            #Copy header to file
+            if line_index <= header_end_index:
+                comet_database_content_new.write(
+                    comet_database_content[line_index])
+                continue
+            
+            line = comet_database_content[line_index]
+            number_comets_pre_selection += 1
+            
+            # Filter on uncertainty parameter. Copy lines of comets for
+            # which orbits are determined reasonably well.
+            cometname = line[0:44].strip()
+            if cometname in comets2select:
+                comet_database_content_new.write(line)
+                number_comets_post_selection += 1
+    
+    LOG.info("{} out of {} comets have U <= {}".format(
+        number_comets_post_selection, number_comets_pre_selection, u_max))
+    LOG.info("Comet database now only includes sources with U <= {}"
+             .format(u_max))
+    if TIME_FUNCTIONS:
+        log_timing_memory(t_func, label="select_comets_on_uncertainty")
+    
+    return
+
+
+# In[ ]:
+
+
+def integrate_database(original_database, asteroid_database_version,
+                       comet_database_version, midnight_utc, tmp_folder):
+    """
+    Function integrates known solar system objects database (in sof-format) to
+    the observation epoch and saves the integrated database to a .sof file. It
+    returns the name of this output file.
+    
+    Parameters:
+    -----------
+    original_database: string
+        Name of the solar system objects database that is yet to be integrated.
     asteroid_database_version: string
         Name of the version (download date) of the asteroid database.
+    comet_database_version: string
+        Name of the version (download date) of the comet database.
     midnight_utc: datetime object, including time zone
         Local midnight during the observation night.
     tmp_folder: string
@@ -1121,33 +1227,38 @@ def integrate_database(asteroid_database, asteroid_database_version,
     if TIME_FUNCTIONS:
         t_subtiming = time.time()
     
-    # Define integrated asteroid database name
+    # Define integrated database name
     midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
-    integrated_asteroid_database = (
-        "{}asteroidDB_version{}_epoch{}.dat"
-        .format(tmp_folder, asteroid_database_version, midnight_utc_str))
+    if INCLUDE_COMETS:
+        ext = "_com{}.sof".format(comet_database_version)
+    else:
+        ext = ".sof"
+    integrated_database = (
+        "{}knownSSOs_epoch{}_ast{}{}"
+        .format(tmp_folder, midnight_utc_str, asteroid_database_version, ext))
     
     # If file exists, there is no reason to remake it
-    if isfile(integrated_asteroid_database):
-        return integrated_asteroid_database
+    if isfile(integrated_database):
+        LOG.info("Integrated database exists and won't be remade")
+        return integrated_database
     
-    LOG.info("Integrating asteroid database to epoch {}..."
+    LOG.info("Integrating SSO database to epoch {}..."
              .format(midnight_utc_str))
     
     # Integrate database
-    subprocess.run(["integrat", asteroid_database, integrated_asteroid_database,
+    subprocess.run(["integrat", original_database, integrated_database,
                     str(Time(midnight_utc).jd), "-f{}".format(FILE_JPLEPH)],
                    cwd=tmp_folder, stdout=subprocess.DEVNULL, check=True)
     
     # Check file size (rounded to nearest 10,000 bytes) as a crude check to see
     # if the integration was performed without issues
-    size_DB = round(os.path.getsize(asteroid_database)/10000.)
-    size_intDB = round(os.path.getsize(integrated_asteroid_database)/10000.)
+    size_DB = round(os.path.getsize(original_database)/10000.)
+    size_intDB = round(os.path.getsize(integrated_database)/10000.)
     if size_intDB < size_DB:
         LOG.error("Integrated database is smaller than original database! "
                   "({}e4 byte < {}e4 byte)".format(size_intDB, size_DB))
         LOG.warning("Using unintegrated database instead!")
-        integrated_asteroid_database = asteroid_database
+        integrated_database = original_database
     
     # Remove temporary file created by integrat
     if isfile("{}ickywax.ugh".format(tmp_folder)):
@@ -1156,7 +1267,7 @@ def integrate_database(asteroid_database, asteroid_database_version,
     if TIME_FUNCTIONS:
         log_timing_memory(t_subtiming, label="integrate_database")
     
-    return integrated_asteroid_database
+    return integrated_database
 
 
 # ### Step 2: create predictions catalogue
@@ -1349,7 +1460,7 @@ def run_astcheck(mpcformat_file, rundir, output_file, matching_radius):
         coordinates should correspond to the centre of the observation.
     rundir: string
         Directory in which astcheck is run. This directory should contain
-        the mpc2sof catalogue that contains the known solar system objects.
+        the mpcorb.sof database that contains the known solar system objects.
     output_file: string
         Path to and name of the output text file in which the matches found
         by astcheck are stored.
@@ -1465,46 +1576,28 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     header["JPLDE-V"] = ("DE{}".format(FILE_JPLEPH.split(".")[-1]),
                          "JPL ephemeris file version used")
     
-    # Add asteroid database version & reference epoch to the SSO header.
-    # The MPCORB.DAT symbolic link in the run directory refers to the
-    # asteroid database version that was used. The name structure of this
-    # database is: 
-    # asteroid_database_version[yyyymmddThhmm]_epoch[yyyymmddThhmm].dat
-    asteroid_database_version, asteroid_database_epoch = "None", "None"
-    if isfile("{}MPCORB.DAT".format(rundir)):
-        asteroid_database = os.readlink("{}MPCORB.DAT".format(rundir))
-        asteroid_database_date = os.path.basename(
-            asteroid_database).split("_")[1].replace("version", "")
-        asteroid_database_version = "{}-{}-{}T{}:{}".format(
-            asteroid_database_date[0:4], asteroid_database_date[4:6],
-            asteroid_database_date[6:8], asteroid_database_date[9:11],
-            asteroid_database_date[11:13])
-        reference_epoch = os.path.basename(asteroid_database).split(
-            "_")[2].replace("epoch", "")
-        asteroid_database_epoch = ("{}-{}-{}T{}:{}".format(
-            reference_epoch[0:4], reference_epoch[4:6], reference_epoch[6:8],
-            reference_epoch[9:11], reference_epoch[11:13]))
+    # Add asteroid database version, comet database version & reference epoch of
+    # the combined known solar system objects database to the SSO header. 
+    # mpcorb.sof (= symbolic link) in the run directory refers to the file
+    # "knownSSOs_epoch{}_ast{}_com{}.sof", where _com{} is optional and where
+    # the brackets signify dates in the format yyyymmddThhmm.
+    database_epoch = "None"
+    asteroidDB_version, cometDB_version = "None", "None"
+    def format_date(name):
+        return "{}-{}-{}T{}:{}".format(name[0:4], name[4:6], name[6:8],
+                                       name[9:11], name[11:13])
+    if isfile("{}mpcorb.sof".format(rundir)):
+        sso_database = os.readlink("{}mpcorb.sof".format(rundir))
+        splitted = os.path.basename(sso_database).split("_")
+        database_epoch = format_date(splitted[1].replace("epoch",""))
+        asteroidDB_version = format_date(splitted[2].replace("ast",""))
+        if len(splitted) > 3:
+            cometDB_version = format_date(splitted[3].replace("com",""))
     
-    header["ASTDB-V"] = (asteroid_database_version,
+    header["ASTDB-EP"] = (database_epoch, "SSO database epoch in UTC")
+    header["ASTDB-V"] = (asteroidDB_version,
                          "asteroid database version (date in UTC)")
-    header["ASTDB-EP"] = (asteroid_database_epoch,
-                          "asteroid database epoch in UTC")
-    
-    # Add comet database version to the SSO header.
-    # The ELEMENTS.COMET symbolic link in the run directory refers to the
-    # comet database version that was used. The name structure of this
-    # database is: cometDB_version[yyyymmddThhmm].dat
-    comet_database_version = "None"
-    if INCLUDE_COMETS:
-        comet_database = os.readlink("{}ELEMENTS.COMET".format(rundir))
-        comet_database_date = os.path.basename(comet_database).split(
-            "_")[1].replace("version", "")
-        comet_database_version = "{}-{}-{}T{}:{}".format(
-            comet_database_date[0:4], comet_database_date[4:6],
-            comet_database_date[6:8], comet_database_date[9:11],
-            comet_database_date[11:13])
-    
-    header["COMDB-V"] = (comet_database_version,
+    header["COMDB-V"] = (cometDB_version,
                          "comet database version (date in UTC)")
     
     # Add matching radius and maximum orbital uncertainty parameter to header
@@ -1550,7 +1643,7 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
     rundir: string
         Directory in which astcheck was run. This directory also contains
         symbolic links to the asteroid and comet databases that were used to
-        create the known objects catalogue that astcheck used.
+        create the known objects database that astcheck used.
     sso_cat: string
         Name of the SSO catalogue to be created in which the matches
         are stored.
@@ -2694,7 +2787,7 @@ def find_database_products(rundir):
     """
     This function checks if the database products that astcheck needs in order
     to process transient catalogues are located in the run directory. These are
-    the known objects catalogue, the symbolic link to the asteroid catalogue
+    the known objects database, the symbolic link to the asteroid database
     (needed for reading out the asteroid database version) and ELEMENTS.COMET,
     which is either an empty comet database (if comets should not be included
     in the matching) or a symbolic link to the comet database used (again 
@@ -2708,9 +2801,9 @@ def find_database_products(rundir):
         Directory in which astcheck will be run.
     """
     
-    # Check for known objects catalogue
+    # Check for known objects database
     if not isfile("{}mpcorb.sof".format(rundir)):
-        LOG.critical("The known objects catalogue (SOF format) could not be "
+        LOG.critical("The known objects database (SOF format) could not be "
                      "found.")
         return False
     
@@ -2786,8 +2879,8 @@ def create_chk_files(noon, noon_type, mpc_code, rundir):
     mpc_code: string
         MPC code of the telescope with which the observation was made.
     rundir: string
-        Directory in which astcheck is run. This directory should contain
-        the mpc2sof catalogue that contains the known solar system objects.
+        Directory in which astcheck is run. This directory should contain the
+        mpcorb.sof database that contains the known solar system objects.
     """
     
     # Check noon_type parameter and set observation time for fake
@@ -3240,7 +3333,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
             magvalue = detections[mag_column][detection_index]
         else:
             fluxvalue = detections[flux_column][detection_index]
-            magvalue = -2.5*np.log10(fluxvalue) + 23.9
+            magvalue = -2.5*np.log10(np.abs(fluxvalue)) + 23.9
         mag = "{:.1f}".format(magvalue)
         
         # Write the data to the MPC-formatted file

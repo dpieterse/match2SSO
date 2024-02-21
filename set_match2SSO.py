@@ -25,7 +25,7 @@ keep_tmp:
 time_functions:
     Boolean indicating whether functions need to be (wall-)timed.
 """
-include_comets = False
+include_comets = True
 keep_tmp = False
 time_functions = True
 
