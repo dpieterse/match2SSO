@@ -821,7 +821,7 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
     
     
     # Downloading and naming asteroid & comet databases
-    # - Download asteroid database
+    # - Download asteroid database if required
     asteroid_database, asteroid_database_version = download_database(
         "asteroid", redownload_db, tmp_folder)
     
@@ -858,15 +858,6 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
     
     
     # Integrating known objects database
-    # - Combine the known comets and asteroids into a SOF file, which integrat
-    #   will then use as input
-    LOG.info("Combining asteroids and comets into knownSSOs.sof file.")
-    t_subtiming = time.time()
-    subprocess.run("mpc2sof", cwd=rundir, check=True)
-    os.rename("{}mpcorb.sof".format(rundir), "{}knownSSOs.sof".format(rundir))
-    if TIME_FUNCTIONS:
-        log_timing_memory(t_subtiming, label="mpc2sof")
-    
     # - Integrat only accepts UTC midnights. Choose the one closest to local
     #   midnight.
     date_midnight = midnight.date()
@@ -876,11 +867,33 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
         date_midnight.strftime("%Y%m%d"), "000000"]), "%Y%m%d %H%M%S"))
     midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
     
-    # - Integrate known objects database to local midnight
-    integrated_database = integrate_database(
-        "{}knownSSOs.sof".format(rundir), asteroid_database_version,
-        comet_database_version, midnight_utc, tmp_folder)
+    # - Define integrated database name
+    if INCLUDE_COMETS:
+        ext = "_com{}.sof".format(comet_database_version)
+    else:
+        ext = ".sof"
+    integrated_database = (
+        "{}knownSSOs_epoch{}_ast{}{}"
+        .format(tmp_folder, midnight_utc_str, asteroid_database_version, ext))
     
+    # - Check if file already exists, in which case the integration can be
+    #   skipped. Otherwise perform the integration.
+    if isfile(integrated_database):
+        LOG.info("Integrated database exists and won't be remade")
+    else:
+        # - Combine the known comets and asteroids into a SOF file, which
+        #   integrat will then use as input
+        LOG.info("Combining asteroids and comets into knownSSOs.sof file.")
+        t_subtiming = time.time()
+        subprocess.run("mpc2sof", cwd=rundir, check=True)
+        os.rename("{}mpcorb.sof".format(rundir),
+                  "{}knownSSOs.sof".format(rundir))
+        if TIME_FUNCTIONS:
+            log_timing_memory(t_subtiming, label="mpc2sof")
+        
+        # - Integrate known objects database to local midnight
+        integrate_database("{}knownSSOs.sof".format(rundir),
+                           integrated_database, midnight_utc, tmp_folder)
     
     # Create a symbolic link to direct "mpcorb.sof" to the integrated database,
     # which astcheck will need as input
@@ -1203,21 +1216,18 @@ def select_comets_on_uncertainty(comet_database):
 # In[ ]:
 
 
-def integrate_database(original_database, asteroid_database_version,
-                       comet_database_version, midnight_utc, tmp_folder):
+def integrate_database(original_database, integrated_database, midnight_utc,
+                       tmp_folder):
     """
     Function integrates known solar system objects database (in sof-format) to
-    the observation epoch and saves the integrated database to a .sof file. It
-    returns the name of this output file.
+    the observation epoch and saves the integrated database to a .sof file.
     
     Parameters:
     -----------
     original_database: string
         Name of the solar system objects database that is yet to be integrated.
-    asteroid_database_version: string
-        Name of the version (download date) of the asteroid database.
-    comet_database_version: string
-        Name of the version (download date) of the comet database.
+    integrated_database: string
+        Name of the integrated SSO database (output file of this function).
     midnight_utc: datetime object, including time zone
         Local midnight during the observation night.
     tmp_folder: string
@@ -1226,24 +1236,8 @@ def integrate_database(original_database, asteroid_database_version,
     """
     if TIME_FUNCTIONS:
         t_subtiming = time.time()
-    
-    # Define integrated database name
-    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
-    if INCLUDE_COMETS:
-        ext = "_com{}.sof".format(comet_database_version)
-    else:
-        ext = ".sof"
-    integrated_database = (
-        "{}knownSSOs_epoch{}_ast{}{}"
-        .format(tmp_folder, midnight_utc_str, asteroid_database_version, ext))
-    
-    # If file exists, there is no reason to remake it
-    if isfile(integrated_database):
-        LOG.info("Integrated database exists and won't be remade")
-        return integrated_database
-    
     LOG.info("Integrating SSO database to epoch {}..."
-             .format(midnight_utc_str))
+             .format(midnight_utc.strftime("%Y%m%dT%H%M")))
     
     # Integrate database
     subprocess.run(["integrat", original_database, integrated_database,
@@ -1267,7 +1261,7 @@ def integrate_database(original_database, asteroid_database_version,
     if TIME_FUNCTIONS:
         log_timing_memory(t_subtiming, label="integrate_database")
     
-    return integrated_database
+    return
 
 
 # ### Step 2: create predictions catalogue
