@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.1.0"
 
@@ -1392,14 +1392,15 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
     for source in astcheck_file_content:
         source = re.sub("\n$", "", source) # Remove line end character
         source_properties = re.split(" +", source)
-        if source_properties[0]:
-            identifier = " ".join([source_properties[0], source_properties[1]])
-        else:
-            identifier = source_properties[1]
-        ra_source, dec_source, magnitude, v_ra, v_dec = source_properties[2:]
+        identifier = " ".join(source_properties[:-5])
+        ra_source, dec_source, magnitude, v_ra, v_dec = source_properties[-5:]
+        try:
+            magnitude = float(magnitude)
+        except:
+            magnitude = np.nan
         
         output_row = (identifier, float(ra_source), float(dec_source),
-                      float(v_ra), float(v_dec), float(magnitude))
+                      float(v_ra), float(v_dec), magnitude)
         output_table.add_row(output_row)
     LOG.info("Created fits catalogue with predictions")
     
@@ -1732,14 +1733,8 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         for i_match in range(len(matches)):
             match_properties = re.split(" +", matches[i_match])
             match_properties = [x for x in match_properties if len(x) > 0]
-            identifier = match_properties[0]
-            try:
-                int(match_properties[1])
-                offset_ra, offset_dec, offset, magnitude = match_properties[1:5]
-            except ValueError:
-                identifier = " ".join([identifier, match_properties[1]])
-                offset_ra, offset_dec, offset, magnitude = match_properties[2:6]
-            
+            identifier = " ".join(match_properties[:-6])
+            offset_ra, offset_dec, offset, magnitude = match_properties[-6:]
             try:
                 magnitude = float(magnitude)
             except ValueError:
