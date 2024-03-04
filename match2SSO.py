@@ -1013,7 +1013,7 @@ def download_database(sso_type, redownload_db, tmp_folder):
         oldDBname = sorted(existing_databases)[-1]
         size_oldDB = round(os.path.getsize(oldDBname)/10000.)
         size_newDB = round(os.path.getsize(database_name)/10000.)
-        if size_newDB < size_oldDB:
+        if size_newDB < 0.95*size_oldDB:
             LOG.error("Downloaded database is {}e4 bytes, whereas the old "
                       "database {} is {}e4 bytes in size. Something went wrong!"
                       .format(size_newDB, oldDBname, size_oldDB))
