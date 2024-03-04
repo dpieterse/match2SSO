@@ -1363,8 +1363,6 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
     
     # Read in astcheck output
     astcheck_file_content = open(output_file, "r").readlines()
-    astcheck_file_content = remove_astcheck_header_and_footer(
-        astcheck_file_content)
     
     # Create table to store solar system bodies and their properties
     output_columns = {
@@ -1670,8 +1668,6 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
     
     # Remove astcheck header and footer if needed
     astcheck_file_content = open(astcheck_file, "r").readlines()
-    astcheck_file_content = remove_astcheck_header_and_footer(
-        astcheck_file_content)
     
     # Find empty lines
     separator = "\n"
@@ -2806,31 +2802,6 @@ def find_database_products(rundir):
         return False
     
     return True
-
-
-# In[ ]:
-
-
-def remove_astcheck_header_and_footer(astcheck_file_content):
-    
-    """
-    Before the -h switch was implemented in astcheck, the header and footer
-    needed to be removed manually. Check if astcheck has done this already, or
-    if manual removal is required. Return the content of the astcheck file
-    excluding the header and footer.
-    """
-    
-    # The footer is variable in terms of the number of lines it spans, but it
-    # always starts with the footer_string as defined below and can hence be
-    # recognized by this string.
-    footer_string = "The apparent motion and arc length"
-    header_size = 5 # Number of header lines
-    footer_index = [index for index in range(len(astcheck_file_content)) if                    footer_string in astcheck_file_content[index]]
-    if footer_index:
-        return astcheck_file_content[header_size:footer_index[0]]
-    
-    else:
-        return astcheck_file_content[1:] # Just remove first empty line
 
 
 # In[ ]:
