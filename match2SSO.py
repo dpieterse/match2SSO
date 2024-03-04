@@ -1384,7 +1384,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
         
     # Loop through SSOs and store their properties in the output table
     for source in astcheck_file_content:
-        source = re.sub("\n$", "", source) # Remove line end character
+        source = re.sub("\n", "", source) # Remove line end character
         source_properties = re.split(" +", source)
         identifier = " ".join(source_properties[:-5])
         ra_source, dec_source, magnitude, v_ra, v_dec = source_properties[-5:]
