@@ -1728,7 +1728,7 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
             match_properties = re.split(" +", matches[i_match])
             match_properties = [x for x in match_properties if len(x) > 0]
             identifier = " ".join(match_properties[:-6])
-            offset_ra, offset_dec, offset, magnitude = match_properties[-6:]
+            offset_ra, offset_dec, offset, magnitude = match_properties[-6:-2]
             try:
                 magnitude = float(magnitude)
             except ValueError:
