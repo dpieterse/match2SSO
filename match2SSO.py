@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.3.1"
+__version__ = "1.4.1"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.1.0"
 
@@ -118,7 +118,7 @@ TIME_FUNCTIONS = bool(settingsFile.time_functions)
 
 def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
                   list2process=None, logname=None, redownload=True,
-                  overwrite=False):
+                  savepredictions=True, makereports=True, overwrite=False):
     """
     Run match2SSO on the input catalogue(s)/date. match2SSO can be run in
     different mode / date2process / cat2process / list2process combinations.
@@ -152,9 +152,18 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
         Path to and name of the log file in which comments about the run are
         stored.
     redownload: boolean
-        Boolean to indicate whether the asteroid (and comet) databases should be
+        Boolean to indicate whether the asteroid and comet databases should be
         redownloaded. Alternatively the most recently downloaded databases will
         be used. Parameter is not relevant for the night mode.
+    savepredictions: boolean 
+        Booleon to indicate whether a prediction catalog needs to be made for
+        each processed transient catalog. This catalog lists all known SSOs that
+        should be in the FOV at the time of the observation. Parameter is not 
+        relevant for the day mode.
+    makereports: boolean
+        Booleon to indicate whether MPC reports of all detected SSOs are
+        automatically made. The reports are however NOT automatically submitted
+        to the MPC! Parameter is not relevant for the day mode.
     overwrite: boolean
         Boolean to indicate whether files will be remade and overwritten.
         Alternatively existing files will be  used.
@@ -207,11 +216,13 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
         day_mode(night_start, tmp_folder, redownload)
         
     elif mode == "night":
-        night_mode(cat2process, night_start, tmp_folder, report_folder)
+        night_mode(cat2process, night_start, tmp_folder, report_folder,
+                   savepredictions, makereports)
     
     elif mode == "historic" or "hist":
         hist_mode(cat2process, date2process, list2process, night_start,
-                  input_folder, tmp_folder, report_folder, redownload)
+                  input_folder, tmp_folder, report_folder, redownload,
+                  savepredictions, makereports)
     
     LOG.info("Finished running match2SSO.")
     log_timing_memory(t_glob, label="run_match2SSO")
@@ -315,8 +326,8 @@ def day_mode(night_start, tmp_folder, redownload_db):
 # In[ ]:
 
 
-def night_mode(cat_name, night_start, tmp_folder, report_folder):
-    
+def night_mode(cat_name, night_start, tmp_folder, report_folder,
+               savepredictions, makereports):
     """
     Run match2SSO on a single transient catalogue. The day mode should have been
     run once before the night mode. This allows the night mode to run in
@@ -325,13 +336,15 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder):
     already been executed in the day mode. The night mode:
       1) Converts the transient catalogue into an MPC-formatted text file.
       2) Runs astcheck on the central coordinates of the observation, to make
-         predictions on the known solar system objects in the FOV.
+         predictions on the known solar system objects in the FOV. The number of
+         bright SSOs in the FOV will later be written to the header of the SSO
+         catalogue.
       3) Makes a prediction catalogue of the known solar system objects in the
-         FOV during the observation.
+         FOV during the observation. Only if savepredictions=True.
       4) Runs astcheck on the MPC-formatted text file, to find matches between
          the detections and known solar system objects.
       5) Makes an SSO catalogue containing the matches.
-      6) Makes an MPC report of the matches.
+      6) Makes an MPC report of the matches, if makereports=True.
     Running the night mode in parallel on multiple catalogues can be done by
     calling match2SSO (with --mode night) multiple times in parallel.
     
@@ -346,6 +359,14 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder):
         directory.
     report_folder: string
         Name of the folder in which the MPC reports will be stored.
+    savepredictions: boolean 
+        Booleon to indicate whether a prediction catalog needs to be made for
+        each processed transient catalog. This catalog lists all known SSOs that
+        should be in the FOV at the time of the observation.
+    makereports: boolean
+        Booleon to indicate whether MPC reports of all detected SSOs are
+        automatically made. The reports are however NOT automatically submitted
+        to the MPC!
     """
     
     LOG.info("Running the night mode on transient catalogue: \n{}"
@@ -386,7 +407,9 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder):
         return
     
     _ = match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
-                               night_start, make_kod=False, redownload_db=False)
+                               night_start, make_kod=False, redownload_db=False,
+                               savepredictions=savepredictions,
+                               makereports=makereports)
     
     # Beware that the run directory created for the processing of the
     # catalogue is not removed. This is the case because a single parallel
@@ -400,8 +423,7 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder):
 
 
 def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
-              report_folder, redownload_db):
-    
+              report_folder, redownload_db, savepredictions, makereports):
     """
     The historic mode does the entire processing of match2SSO, including the
     preparation of the known objects database. The historic mode can be run on a
@@ -425,13 +447,15 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
     For all transient catalogues, the code then:
       5) Converts the transient catalogue into an MPC-formatted text file.
       6) Runs astcheck on the central coordinates of the observation, to make
-         predictions on the known solar system objects in the FOV.
+         predictions on the known solar system objects in the FOV. The number of
+         bright SSOs in the FOV will later be written to the header of the SSO
+         catalogue.
       7) Makes a prediction catalogue of the known solar system objects in the
-         FOV during the observation.
+         FOV during the observation. Only if savepredictions=True.
       8) Runs astcheck on the MPC-formatted text file, to find matches between
          the detections and known solar system objects.
       9) Makes an SSO catalogue containing the matches.
-     10) Makes an MPC report of the matches.
+     10) Makes an MPC report of the matches, if makereports=True.
     
     The historic mode can only be parallelised if there is no overlap in
     observing nights.
@@ -460,6 +484,14 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
         Boolean to indicate whether the asteroid and comet databases should be
         redownloaded. Alternatively the most recently downloaded databases will
         be used.
+    savepredictions: boolean 
+        Booleon to indicate whether a prediction catalog needs to be made for
+        each processed transient catalog. This catalog lists all known SSOs that
+        should be in the FOV at the time of the observation.
+    makereports: boolean
+        Booleon to indicate whether MPC reports of all detected SSOs are
+        automatically made. The reports are however NOT automatically submitted
+        to the MPC!
     Beware that exactly two of the variables (cat_name, date, catlist) need to
     be None!
     """
@@ -493,10 +525,11 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
             if first_night:
                 match_catalogues_single_night(
                     catalogues2process_1night, noon, redownload_db, tmp_folder,
-                    report_folder)
+                    report_folder, savepredictions, makereports)
             else:
                 match_catalogues_single_night(catalogues2process_1night, noon,
-                                              False, tmp_folder, report_folder)
+                                              False, tmp_folder, report_folder,
+                                              savepredictions, makereports)
             first_night = False
         return
     
@@ -517,7 +550,8 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
             return
     
     match_catalogues_single_night(catalogues2process, night_start,
-                                  redownload_db, tmp_folder, report_folder)
+                                  redownload_db, tmp_folder, report_folder,
+                                  savepredictions, makereports)
     
     return
 
@@ -526,7 +560,8 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
 
 
 def match_catalogues_single_night(catalogues_single_night, night_start,
-                                  redownload_db, tmp_folder, report_folder):
+                                  redownload_db, tmp_folder, report_folder,
+                                  savepredictions, makereports):
     """
     Wrapper function that calls the match_single_catalogue function for
     each catalogue in a list that contains catalogues corresponding to
@@ -549,6 +584,14 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
         these databases can be downloaded.
     report_folder: string
         Name of the folder in which the MPC reports will be stored.
+    savepredictions: boolean 
+        Booleon to indicate whether a prediction catalog needs to be made for
+        each processed transient catalog. This catalog lists all known SSOs that
+        should be in the FOV at the time of the observation.
+    makereports: boolean
+        Booleon to indicate whether MPC reports of all detected SSOs are
+        automatically made. The reports are however NOT automatically submitted
+        to the MPC!
     """
     if TIME_FUNCTIONS:
         t_func = time.time()
@@ -572,7 +615,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     for cat_name in catalogues_single_night:
         made_kod = match_single_catalogue(
             cat_name, rundir, tmp_folder, report_folder, night_start,
-            make_kod, redownload_db)
+            make_kod, redownload_db, savepredictions, makereports)
         if made_kod:
             make_kod = False #Only make known objects database once
     
@@ -598,7 +641,8 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
 
 
 def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
-                           night_start, make_kod, redownload_db):
+                           night_start, make_kod, redownload_db,
+                           savepredictions, makereports):
     """
     Run matching routine on a single transient catalogue. Optionally, a new
     known objects database is created where the reference epoch corresponds to
@@ -635,6 +679,14 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
         asteroid and comet databases will need to be redownloaded before making
         the known objects database. Alternatively, the most recent, previously
         downloaded version of the databases are used.
+    savepredictions: boolean 
+        Booleon to indicate whether a prediction catalog needs to be made for
+        each processed transient catalog. This catalog lists all known SSOs that
+        should be in the FOV at the time of the observation.
+    makereports: boolean
+        Booleon to indicate whether MPC reports of all detected SSOs are
+        automatically made. The reports are however NOT automatically submitted
+        to the MPC!
     """
     #mem_use(label="at start of match_single_catalogue")
     if TIME_FUNCTIONS:
@@ -663,55 +715,63 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
     # Create predictions and SSO catalogues in case of a dummy (empty) detection
     # catalogue
     if is_dummy:
-        _ = predictions(None, rundir, predict_cat, "")
+        if savepredictions:
+            _ = predictions(None, rundir, predict_cat, "", True)
         create_sso_catalogue(None, rundir, sso_cat, 0)
         return made_kod
     
     # Check if output catalogues exist, in which case the known objects database
     # will not need to be made
-    if isfile(predict_cat) and isfile(sso_cat) and not OVERWRITE_FILES:
-        LOG.info("Prediction and SSO catalogues exist and won't be remade.\n")
+    if isfile(sso_cat) and not OVERWRITE_FILES:
+        if (isfile(predict_cat) and savepredictions) or not savepredictions:
+            LOG.info("Output catalogue(s) exist and won't be remade.\n")
         
-        # Check for any version of an MPC report for this observation
-        reportnames = list_files(reportname.replace(".txt", ""), end_str=".txt")
-        if reportnames:
-            LOG.info("There is at least one version of an MPC report for this "
-                     "observation. No new one will be made.\n")
+            if not makereports:
+                LOG.info("makereports=False, so no MPC report will be made")
+                return made_kod
+            
+            # Check for any version of an MPC report for this observation
+            reportnames = list_files(reportname.replace(".txt", ""), end_str=".txt")
+            if reportnames:
+                LOG.info("There is at least one version of an MPC report for this "
+                         "observation. No new one will be made.\n")
+                return made_kod
+            
+            # Check if MPC-formatted file that the create_MPC_report function needs
+            # exists and get the MPC code. If it doesn't exist yet / anymore, remake
+            # this file first.
+            mpc_code, create_dummy = convert_fits2mpc(cat_name, mpcformat_file)
+            if mpc_code is None:
+                LOG.critical("Unknown MPC code - MPC report will not be made.")
+                return made_kod
+            
+            if create_dummy:
+                # No MPC report will need to be made, as the SSO catalogue is a
+                # dummy (empty) catalogue.
+                return made_kod
+            
+            # Create an report that can be used to submit the detections that were
+            # matched to known solar system objects to the MPC
+            create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code)
+
+            if not KEEP_TMP:
+                os.remove(mpcformat_file)
+                LOG.info("Removed {}".format(mpcformat_file))
             return made_kod
-        
-        # Check if MPC-formatted file that the create_MPC_report function needs
-        # exists and get the MPC code. If it doesn't exist yet / anymore, remake
-        # this file first.
-        mpc_code, create_dummy = convert_fits2mpc(cat_name, mpcformat_file)
-        if mpc_code is None:
-            LOG.critical("Unknown MPC code - MPC report will not be made.")
-            return made_kod
-        
-        if create_dummy:
-            # No MPC report will need to be made, as the SSO catalogue is a
-            # dummy (empty) catalogue.
-            return made_kod
-        
-        # Create an report that can be used to submit the detections that were
-        # matched to known solar system objects to the MPC
-        create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code)
-        
-        if not KEEP_TMP:
-            os.remove(mpcformat_file)
-            LOG.info("Removed {}".format(mpcformat_file))
-        return made_kod
     
     # Convert the transient catalogue to an MPC-formatted text file
     mpc_code, create_dummy = convert_fits2mpc(cat_name, mpcformat_file)
     if mpc_code is None:
         LOG.critical("Matching cannot be done because of unknown MPC code.")
         LOG.info("Creating dummy catalogues.")
-        _ = predictions(None, rundir, predict_cat, "")
+        if savepredictions:
+            _ = predictions(None, rundir, predict_cat, "", True)
         create_sso_catalogue(None, rundir, sso_cat, 0)
         return made_kod
     
     if create_dummy:
-        _ = predictions(None, rundir, predict_cat, "")
+        if savepredictions:
+            _ = predictions(None, rundir, predict_cat, "", True)
         create_sso_catalogue(None, rundir, sso_cat, 0)
         return made_kod
     
@@ -730,8 +790,10 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
             os.symlink(get_par(settingsFile.obsCodesFile, TEL),
                        "{}ObsCodes.html".format(rundir))
     
-    # Make predictions catalogue
-    N_sso = predictions(cat_name, rundir, predict_cat, mpc_code)
+    # Predict number of bright SSOs in the FOV and make predictions catalogue if
+    # savepredictions=True.
+    N_sso = predictions(cat_name, rundir, predict_cat, mpc_code,
+                        savepredictions)
     
     # Check if the SSO catalogue and MPC report already exist
     reportnames = list_files(reportname.replace(".txt", ""), end_str=".txt")
@@ -753,7 +815,10 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
     
     # Create a report that can be used to submit the detections that were
     # matched to known solar system objects to the MPC
-    create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code)
+    if makereports:
+        create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code)
+    else:
+        LOG.info("makereports=False, so no MPC report will be made")
     
     # Delete temporary files corresponding to the processed transient
     # catalogue. The other temporary files (the CHK files, the SOF file and the
@@ -1270,15 +1335,17 @@ def integrate_database(original_database, integrated_database, midnight_utc,
 # In[ ]:
 
 
-def predictions(transient_cat, rundir, predict_cat, mpc_code,
+def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions,
                 is_FOV_circle=False):
     """
-    Use astcheck to predict which asteroids are in the FOV during the
+    Use astcheck to predict which solar system objects are in the FOV during the
     observation. Predictions can be made for a circular or square FOV. The
-    function returns the number of asteroids that are estimated to be bright
-    enough to be detected (V mag <= limiting AB magnitude). This is a crude
+    function returns the number of SSOs that are estimated to be bright enough
+    to be detected (V mag <= limiting AB magnitude). This is a crude
     estimate, as no correction for the different type of magnitudes is taken
     into account.
+    If savepredictions=True, a predictions catalogue will be saved, containing
+    all SSOs that are predicted to be in the FOV.
     
     Parameters:
     -----------
@@ -1293,6 +1360,10 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
         be saved.
     mpc_code: string
         MPC code corresponding to the telescope.
+    savepredictions: boolean
+        Booleon to indicate whether the prediction catalog needs to be saved to
+        file. If False, the catalogue won't be saved, but this function is just
+        used to calculate the number of SSOs bright enough to be detected.
     is_FOV_circle: boolean
         Boolean indicating if the FOV is circular. If False, a square FOV is
         assumed where the sides are aligned with RA & Dec.
@@ -1309,8 +1380,8 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
         return hdr["N-SSO"]
     
     # If the transient catalogue was red-flagged, we will not make a predictions
-    # catalogue as there is little use for it.
-    if transient_cat is None:
+    # catalogue as there is little use for it. Instead create a dummy if needed.
+    if transient_cat is None and savepredictions:
         LOG.info("Creating a dummy predictions catalogue.")
         sso_header = create_sso_header(rundir, 0, 0, True, False)
         fitstable = format_cat(Table(), start_header=sso_header)
@@ -1319,7 +1390,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
             log_timing_memory(t_func, label="predictions")
         return 0
     
-    LOG.info("Making predictions...")
+    LOG.info("Analysing which SSOs are in the FOV...")
     
     # Open header of transient catalogue
     with fits.open(transient_cat) as hdu:
@@ -1394,7 +1465,6 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
         output_row = (identifier, float(ra_source), float(dec_source),
                       float(v_ra), float(v_dec), magnitude)
         output_table.add_row(output_row)
-    LOG.info("Created fits catalogue with predictions")
     
     # Remove temporary astcheck output file
     if not KEEP_TMP:
@@ -1422,8 +1492,13 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code,
     sso_header = create_sso_header(rundir, 0, N_sso, dummy, False)
     
     # Save to table
-    fitstable = format_cat(output_table, start_header=sso_header)
-    save_fits(fitstable, predict_cat, rundir=rundir)
+    if savepredictions:
+        LOG.info("Created fits catalogue with predictions")
+        fitstable = format_cat(output_table, start_header=sso_header)
+        save_fits(fitstable, predict_cat, rundir=rundir)
+    else:
+        LOG.info("Predicted #SSOs (N-SSO) is returned, but because "
+                 "savepredictions=False, no predictions catalogue is made.")
     
     LOG.info("Predictions saved to {}.".format(predict_cat))
     if TIME_FUNCTIONS:
@@ -3493,9 +3568,20 @@ if __name__ == "__main__":
                         "default of None will not create a log file")
     
     PARSER.add_argument("--redownload", type=str2bool, default=True,
-                        help="Boolean to indicate whether the asteroid (and "
-                        "comet) databases should be redownloaded. Alternatively"
+                        help="Boolean to indicate whether the asteroid and "
+                        "comet databases should be redownloaded. Alternatively"
                         " the most recently downloaded databases will be used.")
+    
+    PARSER.add_argument("--savepredictions", type=str2bool, default=True,
+                        help="Boolean to indicate whether a prediction catalog "
+                        "needs to be made for each processed transient catalog."
+                        " This catalog lists all known SSOs that should be in "
+                        "the FOV at the time of the observation.")
+    
+    PARSER.add_argument("--makereports", type=str2bool, default=True,
+                        help="Boolean to indicate whether MPC reports of all "
+                        "detected SSOs are automatically made. The reports are "
+                        "however NOT automatically submitted to the MPC!")
     
     PARSER.add_argument("--overwrite", type=str2bool, default=False,
                         help="Boolean to indicate whether files will be remade "
@@ -3506,5 +3592,6 @@ if __name__ == "__main__":
     run_match2SSO(tel=ARGS.telescope, mode=ARGS.mode, cat2process=ARGS.catalog,
                   date2process=ARGS.date, list2process=ARGS.catlist,
                   logname=ARGS.logname, redownload=ARGS.redownload,
-                  overwrite=ARGS.overwrite)
+                  savepredictions=ARGS.savepredictions, 
+                  makereports=ARGS.makereports, overwrite=ARGS.overwrite)
 
