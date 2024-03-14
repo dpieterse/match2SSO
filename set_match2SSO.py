@@ -109,7 +109,7 @@ FOV. For a circular FOV, the FOV_width is the diameter of the circle.
 """
 timeZoneTelescope = {"ML": "Africa/Johannesburg", "BG": "America/Santiago"}
 FOV_width = 1.6544 # Size of the FOV in degrees
-mpc_code = {"ML1": "L66", "BG": "809"} # only used in day mode
+mpc_code = {"ML1": "L66", "BG": "X17"} # only used in day mode
 
 # Maximal orbital uncertainty parameter
 """
@@ -122,24 +122,11 @@ maxUncertainty = 2
 
 
 # Header for the MPC report (listed per MPC observatory code)
-MPCreportHeader = {
-    "ML": "".join([
+MPCreportHeader = "".join([
         "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
-        "CON [p.groot@astro.ru.nl]\n",
-        "OBS P. J. Groot, S. L. D. Bloemen, L. Townsend\n",
-        "MEA P. M. Vreeswijk, D. L. A. Pieterse, K. Paterson\n",
-        "TEL 0.65-m reflector + CCD\n",
-        "NET Gaia-DR2\n",
-        "AC2 mpc-response@blackgem.org\n"
-        ]),
-    "BG": "".join([
-        "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
-        "CON [p.groot@astro.ru.nl]\n",
+        "CON [d.pieterse@astro.ru.nl]\n",
         "OBS P. J. Groot, S. L. D. Bloemen\n",
-        "MEA P. M. Vreeswijk, D. L. A. Pieterse\n",
+        "MEA D. L. A. Pieterse, P. M. Vreeswijk\n",
         "TEL 0.65-m reflector + CCD\n",
         "NET Gaia-DR3\n",
-        "AC2 mpc-response@blackgem.org\n"
-        ])
-    }
-
+        "AC2 mpc-response@blackgem.org\n"])
