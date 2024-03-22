@@ -594,7 +594,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
         to the MPC!
     """
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_matchsinglenight = time.time()
     
     LOG.info("{} catalogues to process for the night around {}.".format(
         len(catalogues_single_night),
@@ -632,7 +632,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
         remove_tmp_folder(rundir)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="match_catalogues_single_night")
+        log_timing_memory(t_matchsinglenight, label="match_catalogues_single_night")
     
     return
 
@@ -690,7 +690,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
     """
     #mem_use(label="at start of match_single_catalogue")
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_matchsinglecat = time.time()
     LOG.info("Running match2SSO on {}".format(cat_name))
     
     # Keep track of whether known object database has been made
@@ -831,7 +831,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
         LOG.info("Removed {}".format(astcheck_file))
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="match_single_catalogue")
+        log_timing_memory(t_matchsinglecat, label="match_single_catalogue")
     
     return made_kod
 
@@ -882,8 +882,7 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
     """
     #mem_use(label="at start of create_known_objects_database")
     if TIME_FUNCTIONS:
-        t_func = time.time()
-    
+        t_db = time.time()
     
     # Downloading and naming asteroid & comet databases
     # - Download asteroid database if required
@@ -970,7 +969,7 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
     LOG.info("Created symbolic link {}".format(symlink_integrated_database))
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="create_known_objects_database")
+        log_timing_memory(t_db, label="create_known_objects_database")
     
     LOG.info("Finished loading and formatting external databases.")
     return
@@ -1136,7 +1135,7 @@ def select_asteroids_on_uncertainty(asteroid_database):
         return
     
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_selectast = time.time()
     LOG.info("Removing asteroids with too large uncertainties...\n")
     
     # Open asteroid database
@@ -1187,7 +1186,7 @@ def select_asteroids_on_uncertainty(asteroid_database):
     LOG.info("Asteroid database now only includes sources with U <= {}"
              .format(u_max))
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="select_asteroids_on_uncertainty")
+        log_timing_memory(t_selectast, label="select_asteroids_on_uncertainty")
     
     return
 
@@ -1221,7 +1220,7 @@ def select_comets_on_uncertainty(comet_database):
         return
     
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_selectcom = time.time()
     LOG.info("Removing comets with too large uncertainties...\n")
     
     # Query the JPL database to select comets with well-determined orbits
@@ -1273,7 +1272,7 @@ def select_comets_on_uncertainty(comet_database):
     LOG.info("Comet database now only includes sources with U <= {}"
              .format(u_max))
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="select_comets_on_uncertainty")
+        log_timing_memory(t_selectcom, label="select_comets_on_uncertainty")
     
     return
 
@@ -1371,7 +1370,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions,
     #mem_use(label="at start of predictions")
     
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_pred = time.time()
     
     if not OVERWRITE_FILES and isfile(predict_cat):
         LOG.info("Prediction catalogue already exists and won't be re-made.")
@@ -1387,7 +1386,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions,
         fitstable = format_cat(Table(), start_header=sso_header)
         save_fits(fitstable, predict_cat, rundir=rundir)
         if TIME_FUNCTIONS:
-            log_timing_memory(t_func, label="predictions")
+            log_timing_memory(t_pred, label="predictions")
         return 0
     
     LOG.info("Analysing which SSOs are in the FOV...")
@@ -1502,7 +1501,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions,
     
     LOG.info("Predictions saved to {}.".format(predict_cat))
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="predictions")
+        log_timing_memory(t_pred, label="predictions")
     
     return N_sso
 
@@ -1539,7 +1538,7 @@ def run_astcheck(mpcformat_file, rundir, output_file, matching_radius):
     LOG.info("Running astcheck: matching detections to known solar system "
              "bodies.")
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_astcheck = time.time()
     
     if not OVERWRITE_FILES and isfile(output_file):
         LOG.info("Astcheck output file already exists and won't be re-made.")
@@ -1558,7 +1557,7 @@ def run_astcheck(mpcformat_file, rundir, output_file, matching_radius):
     
     LOG.info("Matches saved to {}.".format(output_file))
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="run_astcheck")
+        log_timing_memory(t_astcheck, label="run_astcheck")
     
     return
 
@@ -1598,7 +1597,7 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     #mem_use(label="at start of create_sso_header")
     LOG.info("Creating SSO header.")
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_ssohdr = time.time()
     
     # Create empty SSO header
     header = fits.Header()
@@ -1684,7 +1683,7 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     header["SDUMCAT"] = (bool(dummy), "dummy SSO catalogue without sources?")
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="create_sso_header")
+        log_timing_memory(t_ssohdr, label="create_sso_header")
     
     return header
 
@@ -1724,7 +1723,7 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
     #mem_use(label="at start of create_sso_catalogue")
     LOG.info("Converting astcheck output into an SSO catalogue.")
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_ssocat = time.time()
     
     if not OVERWRITE_FILES and isfile(sso_cat):
         LOG.info("SSO catalogue already exists and will not be re-made.")
@@ -1738,7 +1737,7 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         fitstable = format_cat(Table(), start_header=sso_header)
         save_fits(fitstable, sso_cat, rundir=rundir)
         if TIME_FUNCTIONS:
-            log_timing_memory(t_func, label="create_sso_catalogue")
+            log_timing_memory(t_ssocat, label="create_sso_catalogue")
         return
     
     # Remove astcheck header and footer if needed
@@ -1833,7 +1832,7 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
     
     LOG.info("Matches saved to SSO catalogue: {}".format(sso_cat))
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="create_sso_catalogue")
+        log_timing_memory(t_ssocat, label="create_sso_catalogue")
     
     return
 
@@ -1878,7 +1877,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     #mem_use(label="at start of create_MPC_report")
     LOG.info("Creating MPC report...")
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_report = time.time()
     
     # Compose temporary report name using run directory as path
     destination = os.path.dirname(reportname)
@@ -1980,7 +1979,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
         LOG.info("MPC report saved to {}".format(destination_file))
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="create_MPC_report")
+        log_timing_memory(t_report, label="create_MPC_report")
     
     return
 
@@ -2007,7 +2006,7 @@ def create_report_header(reportname, mpc_code, comment=None):
     #mem_use(label="at start of create_report_header")
     LOG.info("Creating header for MPC report...")
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_reporthdr = time.time()
     
     firstline = "COD {}\n".format(mpc_code)
     mainheader = get_par(settingsFile.MPCreportHeader, TEL)
@@ -2032,7 +2031,7 @@ def create_report_header(reportname, mpc_code, comment=None):
             com_line = "COM {}\n".format(comment)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="create_report_header")
+        log_timing_memory(t_reporthdr, label="create_report_header")
     
     return "".join([firstline, mainheader, ack_line, com_line])
 
@@ -2084,7 +2083,7 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date,
              .format(minimal_date.strftime("%Y-%m-%d %H:%M:%S"),
                      maximal_date.strftime("%Y-%m-%d %H:%M:%S")))
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_names = time.time()
     
     # Convert to local time
     local_timezone = timezone(get_par(settingsFile.timeZoneTelescope, TEL))
@@ -2172,7 +2171,7 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date,
     LOG.info("{} transient catalogues have been selected."
              .format(len(files2process)))
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="get_transient_filenames")
+        log_timing_memory(t_names, label="get_transient_filenames")
     return files2process
 
 
@@ -3296,7 +3295,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     #mem_use(label="at start of convert_fits2mpc")
     LOG.info("Converting transient catalogue to MPC-format.")
     if TIME_FUNCTIONS:
-        t_func = time.time()
+        t_convert = time.time()
     
     # Load transient catalogue header
     with fits.open(transient_cat) as hdu:
@@ -3384,7 +3383,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     
     LOG.info("MPC-formatted file saved to {}.".format(mpcformat_file))
     if TIME_FUNCTIONS:
-        log_timing_memory(t_func, label="convert_fits2mpc")
+        log_timing_memory(t_convert, label="convert_fits2mpc")
     
     return mpc_code, dummy
 
