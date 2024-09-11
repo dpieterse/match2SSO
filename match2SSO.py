@@ -191,7 +191,7 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
         return
     if not check_settings():
         return
-    folders = load_and_check_folders()
+    folders = load_and_check_folders(mode)
     if not folders: # Empty tuple
         return
     input_folder, tmp_folder, log_folder, report_folder = folders
@@ -2575,7 +2575,7 @@ def check_input_parameters(mode, cat2process, date2process, list2process):
 # In[ ]:
 
 
-def load_and_check_folders():
+def load_and_check_folders(mode):
     
     """
     Function loads the folders specified in the settings file and checks
@@ -2597,7 +2597,7 @@ def load_and_check_folders():
     report_folder = check_folder_name(report_folder)
     
     # Check if critical folders exists. If not, return an empty list.
-    if not isdir(input_folder):
+    if not isdir(input_folder) and (mode == "historic" or mode == "hist"):
         print("CRITICAL: input folder given in settings file doesn't exist")
         return ()
     
