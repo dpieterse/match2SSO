@@ -55,7 +55,7 @@ for tel in ["BG2", "BG3", "BG4"]:
     inputFolder[tel] = "gs://blackgem-red/{}/".format(tel)
     tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
     logFolder[tel] = None
-    MPCreportFolder[tel] = "{}/mpc/{}/".format(runFolderBase["BG"], tel)
+    MPCreportFolder[tel] = "{}/mpc_reports/{}/".format(runFolderBase["BG"], tel)
 
 
 # Text file listing the software versions used
