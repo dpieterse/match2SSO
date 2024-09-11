@@ -39,9 +39,9 @@
 # In[ ]:
 
 
-__version__ = "1.4.1"
+__version__ = "1.5.0"
 __author__ = "Danielle Pieterse"
-KEYWORDS_VERSION = "1.1.0"
+KEYWORDS_VERSION = "1.2.0"
 
 
 # In[ ]:
@@ -1644,7 +1644,7 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
                          "JPL ephemeris file version used")
     
     # Add asteroid database version, comet database version & reference epoch of
-    # the combined known solar system objects database to the SSO header. 
+    # the combined known solar system objects database to the SSO header.
     # mpcorb.sof (= symbolic link) in the run directory refers to the file
     # "knownSSOs_epoch{}_ast{}_com{}.sof", where _com{} is optional and where
     # the brackets signify dates in the format yyyymmddThhmm.
@@ -1661,7 +1661,7 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
         if len(splitted) > 3:
             cometDB_version = format_date(splitted[3].replace("com",""))
     
-    header["ASTDB-EP"] = (database_epoch, "SSO database epoch in UTC")
+    header["SSODB-EP"] = (database_epoch, "SSO database epoch in UTC")
     header["ASTDB-V"] = (asteroidDB_version,
                          "asteroid database version (date in UTC)")
     header["COMDB-V"] = (cometDB_version,
