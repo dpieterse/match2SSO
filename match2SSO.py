@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.5.0"
+__version__ = "1.5.1"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -3444,6 +3444,30 @@ def format_cat(data, header=None, header_keys=[], start_header=None):
     
     for key in header_keys:
         finalheader[key] = (header[key], header.comments[key])
+    
+    # Add column description
+    col_descriptions = {
+        "NUMBER":       "Unique number assigned to the detection in the "
+                        "transient catalog",
+        "ID_SSO":       "Permanent or provisional designation of the known SSO",
+        "DIST_RA_SSO":  "On-sky separation in RA between detection and "
+                        "predicted position",
+        "DIST_DEC_SSO": "On-sky separation in DEC between detection and "
+                        "predicted position",
+        "DIST_SSO":     "Total on-sky separation between detection and "
+                        "predicted position",
+        "MAG_V_SSO":    "V magnitude of the SSO, computed from its H magnitude ",
+        "FLAGS_SSO":    "Flags assigned to the SSO, indicating 1-to-many or "
+                        "many-to-1 matches",
+        "RA_SSO":       "Right ascension (J2000) of the SSO at the observation "
+                        "time",
+        "DEC_SSO":      "Declination (J2000) of the SSO at the observation "
+                        "time",
+        "V_RA_SSO":     "Velocity dRA/dt of the SSO at the observation time",
+        "V_DEC_SSO":    "Velocity dDEC/dt of the SSO at the observation time"
+        }
+    for i_col, column_name in enumerate(data.columns):
+        finalheader["TCOMM{}".format(i_col+1)] = col_descriptions[column_name]
     
     # Combine formatted fits columns and header into output binary fits table
     fitstable = fits.BinTableHDU.from_columns(columns, header=finalheader)
