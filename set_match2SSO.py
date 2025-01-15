@@ -130,3 +130,13 @@ MPCreportHeader = "".join([
         "TEL 0.65-m reflector + CCD\n",
         "NET Gaia-DR3\n",
         "AC2 mpc-response@blackgem.org\n"])
+
+
+# Email settings
+sender = "<danielle@blackgem.org>"
+# comma-separated BlackGEM email addresses of recipients:
+recipients = "danielle@blackgem.org"
+reply_to = "danielle@blackgem.org"
+smtp_server = "smtp-relay.gmail.com"
+port = 465
+use_SSL = True

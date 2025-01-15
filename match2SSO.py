@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.5.1"
+__version__ = "1.6.1"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -95,6 +95,18 @@ logging.basicConfig(level="INFO", format=LOG_FORMAT, datefmt=DATE_FORMAT)
 LOG_FORMATTER = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
 logging.Formatter.converter = time.gmtime # Convert time in logger to UTC
 LOG = logging.getLogger()
+
+
+# In[ ]:
+
+
+# to send email
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.utils import formatdate
+from email import encoders
 
 
 # In[ ]:
@@ -1011,6 +1023,58 @@ def use_existing_database(databaselist, sso_type):
 # In[ ]:
 
 
+def send_email(sso_type):
+    
+    """
+    Function to send an email when the downloading of the asteroid and/or comet
+    database didn't work.
+    
+    Parameters:
+    -----------
+    sso_type: string
+        Type of database: asteroid or comet
+    """
+    
+    body = "{} database couldn't be downloaded for {}".format(sso_type, TEL)
+    subject = "Error in downloading {} database".format(sso_type)
+    recipients = get_par(settingsFile.recipients, TEL)
+    send_to = recipients.split(',')
+    send_from = get_par(settingsFile.sender, TEL)
+    smtp_server = get_par(settingsFile.smtp_server, TEL)
+    port = get_par(settingsFile.port, TEL)
+    
+    use_SSL = get_par(settingsFile.use_SSL, TEL)
+    if use_SSL:
+        smtpObj = smtplib.SMTP_SSL(smtp_server, port)
+    else:
+        smtpObj = smtplib.SMTP(smtp_server, port)
+    
+    smtpObj.ehlo()
+    msg = MIMEMultipart()
+    msg['from'] = send_from
+    msg['to'] = recipients
+    msg['reply-to'] = get_par(settingsFile.reply_to, TEL)
+    msg['date'] = formatdate(localtime=True)
+    msg['subject'] = subject
+    msg.attach(MIMEText(body))
+    
+    try:
+        LOG.info ('sending email with subject {} to {} using smtp server {} '
+                  'on port {}'.format(subject, recipients, smtp_server, port))
+        smtpObj.sendmail(send_from, send_to, msg.as_string())
+    
+    except Exception as e:
+        LOG.exception('exception occurred during sending of email: {}'
+                      .format(e))
+    
+    smtpObj.close()
+    
+    return
+
+
+# In[ ]:
+
+
 def download_database(sso_type, redownload_db, tmp_folder):
     
     """
@@ -1058,9 +1122,19 @@ def download_database(sso_type, redownload_db, tmp_folder):
     database_version = datetime.utcnow().strftime("%Y%m%dT%H%M")
     database_name = "{}{}DB_version{}.dat".format(tmp_folder, sso_type,
                                                   database_version)
-    req = requests.get(database_url, allow_redirects=True)
-    open(database_name, "wb").write(req.content)
-    LOG.info("{} database version: {}".format(sso_type, database_version))
+    try:
+        req = requests.get(database_url, allow_redirects=True)
+        open(database_name, "wb").write(req.content)
+        LOG.info("{} database version: {}".format(sso_type, database_version))
+    except:
+        LOG.error("Download of {} database failed!".format(sso_type))
+        send_email(sso_type)
+        if existing_databases:
+            database_name, database_version = use_existing_database(
+                existing_databases, sso_type)
+        else:
+            LOG.critical("No database found that can be used!")
+        return database_name, database_version
     
     # Remove objects with large orbital uncertainties from database
     if sso_type == "asteroid":
