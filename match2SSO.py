@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.6.2"
+__version__ = "1.6.3"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -79,6 +79,13 @@ from pytz import timezone
 
 # In case a Google cloud storage system is being used
 from google.cloud import storage
+import google.cloud.logging as gcloudlogging
+
+# to send email
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import formatdate
 
 # Local imports
 import set_match2SSO as settingsFile # Load match2SSO settings file
@@ -95,18 +102,6 @@ logging.basicConfig(level="INFO", format=LOG_FORMAT, datefmt=DATE_FORMAT)
 LOG_FORMATTER = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
 logging.Formatter.converter = time.gmtime # Convert time in logger to UTC
 LOG = logging.getLogger()
-
-
-# In[ ]:
-
-
-# to send email
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email.utils import formatdate
-from email import encoders
 
 
 # In[ ]:
@@ -195,6 +190,9 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
     FILE_JPLEPH = get_par(settingsFile.JPL_ephemerisFile, TEL)
     global OVERWRITE_FILES
     OVERWRITE_FILES = overwrite
+    global LOG_GCLOUD
+    if get_par(settingsFile.notify_in_gcloud, TEL):
+        LOG_GCLOUD = gcloudlogging.Client().logger("match2SSO.log")
     
     # Perform checks on input parameter combinations and setting file
     # parameters
@@ -327,9 +325,8 @@ def day_mode(night_start, tmp_folder, redownload_db):
     
     # Check for known object database products
     if not find_database_products(rundir):
-        LOG.error("No database products found...")
         return
-        
+    
     LOG.info("Day mode finished.")
     
     return
@@ -402,11 +399,15 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder,
     night_start_utc = night_start_utc.strftime("%Y%m%d")
     night_end_utc = night_end_utc.strftime("%Y%m%d")
     if not isfile("{}{}.chk".format(rundir, night_start_utc)):
-        LOG.critical("Missing {}.chk!".format(night_start_utc))
+        line = "Missing {}.chk!".format(night_start_utc)
+        LOG.critical(line)
+        send_email(line, "critical")
         logging.shutdown()
         return
     if not isfile("{}{}.chk".format(rundir, night_end_utc)):
-        LOG.critical("Missing {}.chk!".format(night_end_utc))
+        line = "Missing {}.chk!".format(night_end_utc)
+        LOG.critical(line)
+        send_email(line, "critical")
         logging.shutdown()
         return
     del night_start_utc
@@ -414,7 +415,9 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder,
     
     # Check for observatory codes list. Stop processing if it doesn't exist
     if not isfile("{}ObsCodes.html".format(rundir)):
-        LOG.critical("{}ObsCodes.html doesn't exist.".format(rundir))
+        line = "{}ObsCodes.html doesn't exist.".format(rundir)
+        LOG.critical(line)
+        send_email(line, "critical")
         logging.shutdown()
         return
     
@@ -557,8 +560,10 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
             night_start+timedelta(days=1)-timedelta(minutes=1))
         
         if not catalogues2process:
-            LOG.critical("No (light) transient catalogues exist for night {}"
-                         .format(date))
+            line = ("No (light) transient catalogues exist for night {}"
+                    .format(date))
+            LOG.warning(line)
+            send_email(line, "warning")
             return
     
     match_catalogues_single_night(catalogues2process, night_start,
@@ -754,7 +759,9 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
             # this file first.
             mpc_code, create_dummy = convert_fits2mpc(cat_name, mpcformat_file)
             if mpc_code is None:
-                LOG.critical("Unknown MPC code - MPC report will not be made.")
+                line = "Unknown MPC code - MPC report will not be made."
+                LOG.error(line)
+                send_email(line)
                 return made_kod
             
             if create_dummy:
@@ -774,7 +781,9 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
     # Convert the transient catalogue to an MPC-formatted text file
     mpc_code, create_dummy = convert_fits2mpc(cat_name, mpcformat_file)
     if mpc_code is None:
-        LOG.critical("Matching cannot be done because of unknown MPC code.")
+        line = "Matching cannot be done because of unknown MPC code."
+        LOG.critical(line)
+        send_email(line, "critical")
         LOG.info("Creating dummy catalogues.")
         if savepredictions:
             _ = predictions(None, rundir, predict_cat, "", True)
@@ -1023,58 +1032,6 @@ def use_existing_database(databaselist, sso_type):
 # In[ ]:
 
 
-def send_email(sso_type):
-    
-    """
-    Function to send an email when the downloading of the asteroid and/or comet
-    database didn't work.
-    
-    Parameters:
-    -----------
-    sso_type: string
-        Type of database: asteroid or comet
-    """
-    
-    body = "{} database couldn't be downloaded for {}".format(sso_type, TEL)
-    subject = "Error in downloading {} database".format(sso_type)
-    recipients = get_par(settingsFile.recipients, TEL)
-    send_to = recipients.split(',')
-    send_from = get_par(settingsFile.sender, TEL)
-    smtp_server = get_par(settingsFile.smtp_server, TEL)
-    port = get_par(settingsFile.port, TEL)
-    
-    use_SSL = get_par(settingsFile.use_SSL, TEL)
-    if use_SSL:
-        smtpObj = smtplib.SMTP_SSL(smtp_server, port)
-    else:
-        smtpObj = smtplib.SMTP(smtp_server, port)
-    
-    smtpObj.ehlo()
-    msg = MIMEMultipart()
-    msg['from'] = send_from
-    msg['to'] = recipients
-    msg['reply-to'] = get_par(settingsFile.reply_to, TEL)
-    msg['date'] = formatdate(localtime=True)
-    msg['subject'] = subject
-    msg.attach(MIMEText(body))
-    
-    try:
-        LOG.info ('sending email with subject {} to {} using smtp server {} '
-                  'on port {}'.format(subject, recipients, smtp_server, port))
-        smtpObj.sendmail(send_from, send_to, msg.as_string())
-    
-    except Exception as e:
-        LOG.exception('exception occurred during sending of email: {}'
-                      .format(e))
-    
-    smtpObj.close()
-    
-    return
-
-
-# In[ ]:
-
-
 def download_database(sso_type, redownload_db, tmp_folder):
     
     """
@@ -1107,6 +1064,7 @@ def download_database(sso_type, redownload_db, tmp_folder):
     else:
         error_string = "Database type unknown. Cannot be downloaded."
         LOG.critical(error_string)
+        send_email(error_string, "critical")
         raise ValueError(error_string)
     
     # Determine whether database needs to be downloaded
@@ -1127,13 +1085,18 @@ def download_database(sso_type, redownload_db, tmp_folder):
         open(database_name, "wb").write(req.content)
         LOG.info("{} database version: {}".format(sso_type, database_version))
     except:
-        LOG.error("Download of {} database failed!".format(sso_type))
-        send_email(sso_type)
+        line = "Download of {} database failed!".format(sso_type)
+        LOG.error(line)
+        send_email(line)
+        
+        # Use older version of database if it exists
         if existing_databases:
             database_name, database_version = use_existing_database(
                 existing_databases, sso_type)
         else:
-            LOG.critical("No database found that can be used!")
+            line = "No database found that can be used!"
+            LOG.critical(line)
+            send_email(line, 'critical')
         return database_name, database_version
     
     # Remove objects with large orbital uncertainties from database
@@ -1152,9 +1115,11 @@ def download_database(sso_type, redownload_db, tmp_folder):
         size_oldDB = round(os.path.getsize(oldDBname)/10000.)
         size_newDB = round(os.path.getsize(database_name)/10000.)
         if size_newDB < 0.95*size_oldDB:
-            LOG.error("Downloaded database is {}e4 bytes, whereas the old "
-                      "database {} is {}e4 bytes in size. Something went wrong!"
-                      .format(size_newDB, oldDBname, size_oldDB))
+            line = ("Downloaded database is {}e4 bytes, whereas the old "
+                    "database {} is {}e4 bytes in size. Something went wrong!"
+                    .format(size_newDB, oldDBname, size_oldDB))
+            LOG.error(line)
+            send_email(line)
             LOG.info("Removing just downloaded database")
             os.remove(database_name)
             
@@ -1174,7 +1139,7 @@ def download_database(sso_type, redownload_db, tmp_folder):
     #        LOG.info("Removed {}.".format(old_database))
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_subfunc, label="downloadDatabase ({})"
+        log_timing_memory(t_subfunc, label="download_database ({})"
                           .format(sso_type))
     
     return database_name, database_version
@@ -1387,9 +1352,11 @@ def integrate_database(original_database, integrated_database, midnight_utc,
     size_DB = round(os.path.getsize(original_database)/10000.)
     size_intDB = round(os.path.getsize(integrated_database)/10000.)
     if size_intDB < size_DB:
-        LOG.error("Integrated database is smaller than original database! "
-                  "({}e4 byte < {}e4 byte)".format(size_intDB, size_DB))
-        LOG.warning("Using unintegrated database instead!")
+        line = ("Integrated database is smaller than original database! "
+                "({}e4 byte < {}e4 byte)".format(size_intDB, size_DB))
+        LOG.error(line)
+        send_email(line)
+        LOG.info("Using unintegrated database instead.")
         integrated_database = original_database
     
     # Remove temporary file created by integrat
@@ -1687,7 +1654,9 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     cpp_macro = proc.stdout.decode("utf-8").replace("\n", "").split()[-1]
     
     if cpp_macro not in settingsFile.CPPmacro2version.keys():
-        LOG.error("C++ macro unknown: {}".format(cpp_macro))
+        line = "C++ macro unknown: {}".format(cpp_macro)
+        LOG.error(line)
+        send_email(line)
         cpp_version = "None"
     else:
         cpp_version = settingsFile.CPPmacro2version[cpp_macro]
@@ -1876,8 +1845,10 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
             try:
                 magnitude = float(magnitude)
             except ValueError:
-                LOG.warning("Magnitude '{}' could not be converted to float."
-                            .format(magnitude))
+                line = ("Magnitude '{}' could not be converted to float."
+                        .format(magnitude))
+                LOG.warning(line)
+                send_email(line, "warning")
                 magnitude = None
         
             # Add match to output table
@@ -2025,9 +1996,12 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
             np.array(detections_mpcformat["char1to14"])
             == int(sso_cat_content[number_column][match_index]))[0]
         if len(detection_index) != 1:
-            LOG.error("{} detections found that correspond to transient number"
-                      " {}. Should be only one.".format(len(detection_index),
-                      int(sso_cat_content[number_column][match_index])))
+            line = ("{} detections found that correspond to transient number "
+                    "{}. Should be only one."
+                    .format(len(detection_index),
+                            int(sso_cat_content[number_column][match_index])))
+            LOG.error(line)
+            send_email(line)
             continue
         detection_index = detection_index[0]
         detection_line = "".join([detection_line, detections_mpcformat[
@@ -2036,8 +2010,10 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
         # Check line corresponding to detection and write to the MPC report if
         # all is well
         if len(detection_line) != 80:
-            LOG.error("Detection not formatted correctly in 80 columns:\n{}"
-                      .format(detection_line))
+            line = ("Detection not formatted correctly in 80 columns:\n{}"
+                    .format(detection_line))
+            LOG.error(line)
+            send_email(line)
         report_content.write(detection_line+"\n")
         Nlines += 1
     
@@ -2048,7 +2024,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     LOG.info("Moving report to {}".format(destination))
     copy_file(reportname, destination_file, move=True)
     if isfile(destination_file):
-        LOG.warning("MPC report {} is overwritten.".format(destination_file))
+        LOG.info("MPC report {} is overwritten.".format(destination_file))
     else:
         LOG.info("MPC report saved to {}".format(destination_file))
     
@@ -2093,14 +2069,18 @@ def create_report_header(reportname, mpc_code, comment=None):
     # Add ACK line to the header of the MPC report.
     ack_line = "ACK {}\n".format(Path(reportname).stem)
     if len(ack_line) > 82:
-        LOG.error("ACK line in report {} is too long!".format(reportname))
+        line = "ACK line in report {} is too long!".format(reportname)
+        LOG.error(line)
+        send_email(line)
     
     # Add COM line to the header
     com_line = ""
     if comment is not None:
         if len(comment) > 76:
-            LOG.warning("COM line is too long and therefore not used. "
-                        "Use at most 76 characters!")
+            line = ("COM line is too long and therefore not used. Use at most "
+                    "76 characters!")
+            LOG.error(line)
+            send_email(line)
         else:
             com_line = "COM {}\n".format(comment)
     
@@ -2236,7 +2216,9 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date,
                 LOG.info("Excluding red-flagged (dummy) catalogues.")
                 
                 if dummy_keyword not in header.keys():
-                    LOG.critical("{} not in the header!".format(dummy_keyword))
+                    line = "{} not in the header!".format(dummy_keyword)
+                    LOG.critical(line)
+                    send_email(line, 'critical')
                     return []
                 
                 if not header[dummy_keyword]:
@@ -2299,7 +2281,9 @@ def get_night_start_from_date(cat_name, noon_type="local"):
             date, "120000"]), "%Y%m%d %H%M%S"))
     else:
         if noon_type != "utc":
-            LOG.error("Noon type not understood. Assuming noon in utc.")
+            line = "Noon type not understood. Assuming noon in utc."
+            LOG.warning(line)
+            send_email(line, "warning")
         
         night_start = pytz.utc.localize(datetime.strptime(" ".join([
             observation_date, "120000"]), "%Y-%m-%d %H%M%S"))
@@ -2363,8 +2347,10 @@ def pack_permanent_designation(full_designation):
                                                 abbreviate_number(remainder))
     # Final check
     if len(packed_designation) != 5:
-        LOG.error("Packed permanent designation is of incorrect length: '{}'"
-                  .format(packed_designation))
+        line = ("Packed permanent designation is of incorrect length: '{}'"
+                .format(packed_designation))
+        LOG.error(line)
+        send_email(line)
         return None, ""
     
     return packed_designation, fragment
@@ -2446,8 +2432,10 @@ def pack_provisional_designation_asteroid(full_designation, pack_year):
     """
     
     if int(full_designation[:2]) not in pack_year.keys():
-        LOG.error("Provisional designation of asteroid {} cannot be packed. "
-                  "Skipping it.".format(full_designation))
+        line = ("Provisional designation of asteroid {} cannot be packed. "
+                "Skipping it.".format(full_designation))
+        LOG.error(line)
+        send_email(line)
         return None
     
     packed_year = "{}{}".format(pack_year[int(full_designation[:2])],
@@ -2458,8 +2446,10 @@ def pack_provisional_designation_asteroid(full_designation, pack_year):
                                   full_designation[6]))
     # Final check
     if len(packed_designation) != 8:
-        LOG.error("Packed provisional designation is of incorrect length: "
-                  "'{}'".format(packed_designation))
+        line = ("Packed provisional designation is of incorrect length: "
+                "'{}'".format(packed_designation))
+        LOG.error(line)
+        send_email(line)
         return None
     
     return packed_designation
@@ -2500,8 +2490,10 @@ def pack_provisional_designation_comet(full_designation, pack_year):
     year, remainder = designation.split(" ")
         
     if int(year[:2]) not in pack_year.keys():
-        LOG.error("Provisional designation of comet {} cannot be packed. "
-                  "Skipping it.".format(full_designation))
+        line = ("Provisional designation of comet {} cannot be packed. "
+                "Skipping it.".format(full_designation))
+        LOG.error(line)
+        send_email(line)
         return None
     
     packed_year = "{}{}".format(pack_year[int(year[:2])], year[2:])
@@ -2515,8 +2507,10 @@ def pack_provisional_designation_comet(full_designation, pack_year):
             # the space and a fragment letter cannot be submitted in the old
             # report format. It can in the new ADES format, but we are
             # not yet using this. Skip detection.
-            LOG.error("Provisional designation of comet {} cannot be packed."
-                      "Skipping it.".format(full_designation))
+            line = ("Provisional designation of comet {} cannot be packed."
+                    "Skipping it.".format(full_designation))
+            LOG.error(line)
+            send_email(line)
             return None
         
         # Although this object is not a fragment, its provisional designation
@@ -2528,13 +2522,17 @@ def pack_provisional_designation_comet(full_designation, pack_year):
     # There should be at most three digits after the space-letter combination
     # in the provisional designation.
     if len(remainder) > 4:
-        LOG.error("Unclear how to pack provisional designation of comet {}. "
-                  "Skipping it.".format(full_designation))
+        line = ("Unclear how to pack provisional designation of comet {}. "
+                "Skipping it.".format(full_designation))
+        LOG.error(line)
+        send_email(line)
         return None
     
     if int(year[:2]) not in pack_year.keys():
-        LOG.error("Data from before 1800 or after 2099 cannot be assigned a "
-                  "packed provisional designation.")
+        line = ("Data from before 1800 or after 2099 cannot be assigned a "
+                "packed provisional designation.")
+        LOG.error(line)
+        send_email(line)
         return None
     
     packed_designation = ("{}{}{}{}{}"
@@ -2542,8 +2540,10 @@ def pack_provisional_designation_comet(full_designation, pack_year):
                                   pack_cycle_number(remainder[1:]), fragment))
     # Final check
     if len(packed_designation) != 8:
-        LOG.error("Packed provisional designation is of incorrect length: "
-                  "'{}'".format(packed_designation))
+        line = ("Packed provisional designation is of incorrect length: "
+                "'{}'".format(packed_designation))
+        LOG.error(line)
+        send_email(line)
         return None
     
     return packed_designation
@@ -2585,7 +2585,7 @@ def pack_cycle_number(number_of_cycles):
 
 
 # ### General subroutines for checks and set-up
-# Subroutines that support match2SSO's functionality by checking parameters, files, folders and software versions; setting up logging and time & memory tracking and more
+# Subroutines that support match2SSO's functionality by checking parameters, files, folders and software versions; setting up logging and alerts, setting up time & memory tracking and more
 
 # In[ ]:
 
@@ -2793,6 +2793,86 @@ def setup_logfile(logname, log_folder):
 # In[ ]:
 
 
+def send_email(body, msg_class="error"):
+    
+    """
+    Function to send an email when an error occured in match2SSO. If the
+    parameter notify_in_gcloud from the settings file is set to True (which may
+    differ per telescope), instead of an email, the message is added to the
+    gcloud log. In the gcloud logging interface, one can set notifications for
+    (phrases to appear in) this log.
+    If the parameter get_notified in the settings file is False, neither of the
+    aforementioned will happen.
+    
+    A message class is specified, indicating whether a warning, error or
+    critical error occured. The class gets added to the email or line in the
+    Google cloud log. Emails are sent for all errors (whether critical or not),
+    but not for warnings. For the Google cloud log, all messages are included,
+    also the warnings.
+    
+    Parameters:
+    -----------
+    body: string
+        Text that will become the body of the email
+    msg_class: string
+        Message class: 'warning', 'error' or 'critical'
+    """
+    if not settingsFile.get_notified:
+        return
+    
+    msg_class = msg_class.lower()
+    body = "{}: {}".format(msg_class, body)
+    
+    in_gcloud = bool(get_par(settingsFile.notify_in_gcloud, TEL))
+        
+    if in_gcloud:
+        LOG.info("writing {} message to gcloud log".format(msg_class))
+        LOG_GCLOUD.log_text(body)
+        return
+    
+    if msg_class == "warning":
+        return
+    
+    # Prepare email
+    subject = "{} occured in match2SSO for {}".format(msg_class, TEL)
+    recipients = get_par(settingsFile.recipients, TEL)
+    send_to = recipients.split(',')
+    send_from = get_par(settingsFile.sender, TEL)
+    smtp_server = get_par(settingsFile.smtp_server, TEL)
+    port = get_par(settingsFile.port, TEL)
+    
+    use_SSL = get_par(settingsFile.use_SSL, TEL)
+    if use_SSL:
+        smtpObj = smtplib.SMTP_SSL(smtp_server, port)
+    else:
+        smtpObj = smtplib.SMTP(smtp_server, port)
+    
+    smtpObj.ehlo()
+    msg = MIMEMultipart()
+    msg['from'] = send_from
+    msg['to'] = recipients
+    msg['reply-to'] = get_par(settingsFile.reply_to, TEL)
+    msg['date'] = formatdate(localtime=True)
+    msg['subject'] = subject
+    msg.attach(MIMEText(body))
+    
+    # Send email
+    try:
+        LOG.info("sending email with subject '{}' to {} using smtp server {} "
+                 "on port {}".format(subject, recipients, smtp_server, port))
+        smtpObj.sendmail(send_from, send_to, msg.as_string())
+    
+    except Exception as e:
+        LOG.exception("An exception occurred during sending of email: {}"
+                      .format(e))
+    
+    smtpObj.close()
+    return
+
+
+# In[ ]:
+
+
 # ZOGY function
 def log_timing_memory(t_in, label=""):
     
@@ -2893,8 +2973,9 @@ def check_input_catalogue(cat_name):
             cat_name = light_cat
     
     if not isfile(cat_name):
-        LOG.critical("The specified catalog does not exist:\n{}"
-                     .format(cat_name))
+        line = "The specified catalog does not exist:\n{}".format(cat_name)
+        LOG.critical(line)
+        send_email(line, 'critical')
         return False, None, cat_name
     
     # Check quality control flag of the catalogue
@@ -2903,8 +2984,9 @@ def check_input_catalogue(cat_name):
     
     dummy_keyword = get_par(settingsFile.keyDummy, TEL)
     if dummy_keyword not in header.keys():
-        LOG.critical("{} not in the header of {}!".format(dummy_keyword,
-                                                          cat_name))
+        line = "{} not in the header of {}!".format(dummy_keyword, cat_name)
+        LOG.critical(line)
+        send_email(line, 'critical')
         return False, None, cat_name
     
     if header[dummy_keyword]:
@@ -2938,17 +3020,22 @@ def find_database_products(rundir):
     
     # Check for known objects database
     if not isfile("{}mpcorb.sof".format(rundir)):
-        LOG.critical("The known objects database (SOF format) could not be "
-                     "found.")
+        line = "The known objects database (SOF format) could not be found."
+        LOG.critical(line)
+        send_email(line, "critical")
         return False
     
     # Check for symbolic links pointing to the used version of the SSO
     # databases
     if not isfile("{}MPCORB.DAT".format(rundir)):
-        LOG.critical("MPCORB.DAT could not be found")
+        line = "MPCORB.DAT could not be found"
+        LOG.critical(line)
+        send_email(line, "critical")
         return False
     if not isfile("{}ELEMENTS.COMET".format(rundir)):
-        LOG.critical("ELEMENTS.COMET could not be found")
+        line = "ELEMENTS.COMET could not be found"
+        LOG.critical(line)
+        send_email(line, "critical")
         return False
     
     return True
@@ -2997,7 +3084,9 @@ def create_chk_files(noon, noon_type, mpc_code, rundir):
     # detection
     noon_type = noon_type.lower()
     if noon_type not in ["night_start", "night_end"]:
-        LOG.error("Unknown noon type!")
+        line = "Unknown noon type!"
+        LOG.warning(line)
+        send_email(line, "warning")
         return
     if noon_type == "night_start":
         obstime = noon + timedelta(minutes=1)
@@ -3383,8 +3472,10 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     if mpc_code not in list(pd.read_fwf(get_par(
         settingsFile.obsCodesFile, TEL), widths=[4, 2000], skiprows=1)["Code"
                                                                       ])[:-1]:
-        LOG.critical("MPC code {} is not in the MPC list of observatory codes"
-                     .format(mpc_code))
+        line = ("MPC code {} is not in the MPC list of observatory codes"
+                .format(mpc_code))
+        LOG.critical(line)
+        send_email(line, 'critical')
         return None, True
     
     # Check if MPC-formatted file exists and if it should be overwritten or not
@@ -3624,7 +3715,7 @@ def remove_tmp_folder(tmp_path):
         shutil.rmtree(tmp_path)
         LOG.info("Removing temporary folder: {}".format(tmp_path))
     else:
-        LOG.warning("tmp folder {} does not exist".format(tmp_path))
+        LOG.info("tmp folder {} does not exist".format(tmp_path))
     
     #mem_use(label="after removing temporary folder")
     return

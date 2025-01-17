@@ -10,6 +10,7 @@ URL_cometDatabase = "https://ssd.jpl.nasa.gov/dat/ELEMENTS.COMET"
 CPPmacro2version = {"202002L":"C++20", "201703L":"C++17", "201402L":"C++14",
                     "201103L":"C++11", "199711L":"C++98"}
 
+
 # Switches
 """
 Description of switches:
@@ -24,10 +25,14 @@ keep_tmp:
     should be kept or removed at the end of the processing.
 time_functions:
     Boolean indicating whether functions need to be (wall-)timed.
+get_notified:
+    Boolean indicating whether a notification should be sent in case of an error
+    (both critical and non-critical) occuring in match2SSO.
 """
 include_comets = True
 keep_tmp = False
 time_functions = True
+get_notified = True
 
 
 #==============================================================================
@@ -109,7 +114,7 @@ FOV. For a circular FOV, the FOV_width is the diameter of the circle.
 """
 timeZoneTelescope = {"ML": "Africa/Johannesburg", "BG": "America/Santiago"}
 FOV_width = 1.6544 # Size of the FOV in degrees
-mpc_code = {"ML1": "L66", "BG": "X17"} # only used in day mode
+mpc_code = {"ML": "L66", "BG": "X17"} # only used in day mode
 
 # Maximal orbital uncertainty parameter
 """
@@ -131,6 +136,9 @@ MPCreportHeader = "".join([
         "NET Gaia-DR3\n",
         "AC2 mpc-response@blackgem.org\n"])
 
+
+# Send email or notification to gcloud logging for errors
+notify_in_gcloud = {"ML": False, "BG": True}
 
 # Email settings
 sender = "<danielle@blackgem.org>"
