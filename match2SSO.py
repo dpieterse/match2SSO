@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.6.1"
+__version__ = "1.6.2"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -2714,23 +2714,25 @@ def check_settings():
     """Function checks the parameters in the settings file for validity."""
     
     # Check that astcheck parameters are numbers
-    if not isinstance(settingsFile.matchingRadius, (float, int)):
+    if not isinstance(get_par(settingsFile.matchingRadius, TEL), (float, int)):
         print("CRITICAL: incorrectly specified matching radius in settings "
               "file. Must be float or integer.")
         return False
     
-    if not isinstance(settingsFile.limitingMagnitude, (float, int)):
+    if not isinstance(get_par(settingsFile.limitingMagnitude, TEL), (float,
+                                                                     int)):
         print("CRITICAL: incorrectly specified limiting mag. in settings "
               "file.")
         return False
     
-    if not isinstance(settingsFile.maximalNumberOfAsteroids, int):
+    if not isinstance(get_par(settingsFile.maximalNumberOfAsteroids, TEL),
+                      int):
         print("CRITICAL: incorrectly specified max. number of asteroids in "
               "settings file.")
         return False
     
-    if (not isinstance(settingsFile.maxUncertainty, int) and
-            settingsFile.maxUncertainty is not None):
+    maxUnc = get_par(settingsFile.maxUncertainty, TEL)
+    if (not isinstance(maxUnc, int) and maxUnc is not None):
         print("CRITICAL: incorrectly specified max. uncertainty in settings "
               "file. Must be 0-9 or None.")
         return False
@@ -3053,7 +3055,7 @@ def retrieve_version(package_name):
     """
     
     try:
-        versions_file = open(settingsFile.versionsFile)
+        versions_file = open(get_par(settingsFile.versionsFile, TEL))
         for line in versions_file:
             if package_name in line:
                 line = line.replace("\n","")
@@ -3378,9 +3380,9 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     
     # Get the MPC observatory code from the header
     mpc_code = transient_header[mpc_code_keyword].strip()
-    if mpc_code not in list(pd.read_fwf(settingsFile.obsCodesFile,
-                                        widths=[4, 2000],
-                                        skiprows=1)["Code"])[:-1]:
+    if mpc_code not in list(pd.read_fwf(get_par(
+        settingsFile.obsCodesFile, TEL), widths=[4, 2000], skiprows=1)["Code"
+                                                                      ])[:-1]:
         LOG.critical("MPC code {} is not in the MPC list of observatory codes"
                      .format(mpc_code))
         return None, True
