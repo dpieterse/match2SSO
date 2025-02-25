@@ -1,19 +1,18 @@
 # match2SSO
-Python code to match **single** telescope detections to **known solar system objects** based on their **position**. To keep the matching accurate, only **known objects with small orbital uncertainties** are used in the matching. The maximum allowed uncertainty is set in _set_match2SSO.py_.
+Python code to match **single** telescope detections to **known solar system objects** based on their **position**. To keep the matching accurate, only **known objects with small orbital uncertainties** are used in the matching. The maximum allowed uncertainty is set in _set_match2SSO.py_. Asteroid matching is done by default. Comet matching is only done when ```include_comets = True``` (in the settings file).
 
-Asteroid matching is done by default. Comet matching is only done when ```include_comets = True``` (in the settings file).
-
-_match2SSO_ was created for the [MeerLICHT](http://www.meerlicht.uct.ac.za/) & [BlackGEM](https://astro.ru.nl/blackgem/) telescopes. The code is available as a Python script. It's compatible with MeerLICHT's image processing software (BlackBOX & ZOGY) version 1.0.0 and up.
+_match2SSO_ was created for the [MeerLICHT](http://www.meerlicht.uct.ac.za/) & [BlackGEM](https://astro.ru.nl/blackgem/) telescopes. The code is available as a Python script. It's compatible with MeerLICHT's image processing software (BlackBOX & ZOGY) version 1.0.0 and up. Telescope specific parameters are specified in the settings file, so the code should be relatively easy to adapt to run on the data from other telescopes.
 
 _match2SSO_ makes grateful use of the [_lunar_](https://github.com/Bill-Gray/lunar) and [_jpl_eph_](https://github.com/Bill-Gray/jpl_eph) repositories that were written by Bill Gray under Project Pluto. The core of _match2SSO_ is [_astcheck_](https://www.projectpluto.com/astcheck.htm): a C++ script in the _lunar_ repository that matches detections to known solar system objects.
 
 
 ## Installation
 - Install Python (code was tested on Python 3.8.10) and C++ 
+- Create a new (software) folder to house repositories and files needed by match2SSO
 - Clone Bill Gray's _lunar_ repository to a software folder (https://github.com/Bill-Gray/lunar) and build the library & executables as described in this repository's README file. Also build _integrat_ by running ```make integrat```.
 - Add the lunar folder to PATH in your bash file
 - Clone Bill Gray's _jpl_eph_ repository to the software folder (https://github.com/Bill-Gray/jpl_eph) and build the library & executables as described in this repository's README file.
-- Clone the match2SSO repository.
+- Clone the match2SSO repository (preferably to the software folder).
 - Download JPL's DE ephemeris file to the software folder. (ftp://ssd.jpl.nasa.gov/pub/eph/planets/Linux/)
 - Download MPC's Observatory codes list to the software folder. (https://www.minorplanetcenter.net/iau/lists/ObsCodes.html)
 
@@ -27,13 +26,13 @@ In addition, _match2SSO_ uses MPCORB.DAT (MPC's asteroid database) and COMET.ELE
 
 #### Output
 - Solar Sytem Object (SSO) catalogue containing the matches between detections and known solar system objects (__sso.fits_). SSO catalogue columns and header keywords are listed here: https://www.overleaf.com/read/zrhqwcbkfqns
-- Prediction catalogue containing the solar system objects that were predicted to be in the FOV during the observation (__sso_predict.fits_). Prediction catalogue columns and header keywords are listed in the overleaf document mentioned above. Prediction catalogues are only made if ```--savepredictions True```.
-- MPC report (__sso_report.txt_), to allow easy submission of all detections of known solar system objects to the Minor Planet Center. MPC reports are created if ```--makereports True```, but are **not** submitted automatically to the MPC.
+- Prediction catalogue containing the solar system objects that are predicted to be in the FOV during the observation (__sso_predict.fits_). Prediction catalogue columns and header keywords are listed in the overleaf document mentioned above. Prediction catalogues are only made if ```--savepredictions True```.
+- MPC report (__sso_report.txt_), to allow easy reporting of all detections of known solar system objects to the Minor Planet Center. MPC reports are created if ```--makereports True```, but are **not** automatically sent to the MPC.
 
 
 ## Running match2SSO
 Run the _match2SSO.py_ script from the command line. It can be run in three modes:
-- Historic mode: run on existing data. 
+- Historic mode: run match2SSO on existing data. 
 - Day mode: needs to be executed once before the start of an observing night, to allow the night mode to be run in real-time during that night. Allows speedy and parallelized processing in night mode.
 - Night mode: run during the observing run (in real time) on a single detection catalogue. Needs the products made during the day mode.
 
@@ -41,9 +40,9 @@ More details on these modes are listed under "Code description" below.
 
 
 ### Main command line parameters:
-- ```--mode``` Historic, night or day mode
-- ```--catalog``` Name of detection catalogue to run the matching on
-- ```--date``` Run _match2SSO_ run on all detection catalogues corresponding to this observing night.
+- ```--mode``` historic / night / day. Default is historic.
+- ```--catalog``` Name of detection catalogue (including file path) to run the matching on.
+- ```--date``` Run _match2SSO_ on all detection catalogues corresponding to this observing night.
 - ```--catlist``` Run _match2SSO_ on all detection catalogues listed in this file.
 
 Allowed combinations of the above-mentioned parameters are:
@@ -56,12 +55,12 @@ Allowed combinations of the above-mentioned parameters are:
 
 
 ### Other command line parameters:
-- ```--telescope``` (Abbreviated) telescope name. Allows dictionaries in the settings file _set_match2SSO.py_ with different parameter values for different telescopes.
+- ```--telescope``` (Abbreviated) telescope name. Allows dictionaries in the settings file _set_match2SSO.py_ with different parameter values for different telescopes. Default is ML1 (for MeerLICHT data).
 - ```--logname``` Name of the log file
-- ```--redownload``` Boolean to indicate whether previously downloaded versions of the MPC asteroid database and JPL comet database may be used, or whether a new version is to be downloaded.
-- ```--savepredictions``` Boolean to indicate whether prediction catalogues need to be made. (See *output* section above.)
-- ```--makereports``` Boolean to indicate whether MPC reports should be created for all SSO detections. (See *output* section above.)
-- ```--overwrite``` Boolean to indicate whether files may be overwritten
+- ```--redownload``` Boolean to indicate whether previously downloaded versions of the MPC asteroid database and JPL comet database may be used, or whether a new version is to be downloaded. Default is True.
+- ```--savepredictions``` Boolean to indicate whether prediction catalogues need to be made. (See *output* section above.) Default is True.
+- ```--makereports``` Boolean to indicate whether MPC reports should be created for all SSO detections. (See *output* section above.) Default is True.
+- ```--overwrite``` Boolean to indicate whether files may be overwritten. Default is False.
 
 ### Multi-processing
 Although multi-processing was not implemented within the code, efforts have been made to allow calling the code multiple times in parallel.
