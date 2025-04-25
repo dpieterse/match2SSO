@@ -3148,7 +3148,7 @@ def retrieve_version(package_name):
         for line in versions_file:
             if package_name in line:
                 line = line.replace("\n","")
-                vers = line.split(" ")[1]
+                vers = line.split(" ")[-1]
                 break
         versions_file.close()
     except:
