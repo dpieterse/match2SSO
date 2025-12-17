@@ -3762,9 +3762,9 @@ if __name__ == "__main__":
                         "comet databases should be redownloaded. Alternatively"
                         " the most recently downloaded databases will be used.")
     
-    PARSER.add_argument("--savepredictions", type=str2bool, default=True,
+    PARSER.add_argument("--savepredictions", type=str2bool, default=False,
                         help="Boolean to indicate whether a prediction catalog "
-                        "needs to be made for each processed transient catalog."
+                        "needs to be made for each processed source catalog."
                         " This catalog lists all known SSOs that should be in "
                         "the FOV at the time of the observation.")
     
