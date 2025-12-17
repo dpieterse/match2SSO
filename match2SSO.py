@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.6.3"
+__version__ = "1.6.4"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -1618,9 +1618,8 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
         Name of the folder in which the symbolic links to the databases are
         stored. These are used to get the version numbers of the databases.
     N_det: int
-        Number of detected solar system objects. Only one matched object is
-        counted per transient detection and if an object is matched to multiple
-        transients, it is also only counted once.
+        Number of detected, unflagged solar system objects (so excluding
+        one-to-many and many-to-one matches).
     N_sso: int
         Number of solar system objects in the FOV that are supposedly bright
         enough for a detection (V magnitude < T-LMAG). The difference between V
@@ -1810,7 +1809,6 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         output_table.add_column(Column(name=key, dtype=output_columns[key][0],
                                        unit=output_columns[key][1]))
     # Loop over sources
-    N_det = 0
     for index in range(len(indices_separator)-1):
         minimal_index = indices_separator[index]+1
         maximal_index = indices_separator[index+1]
@@ -1826,8 +1824,6 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         
         if not matches: #Empty list
             continue
-        
-        N_det += 1
         
         # If a source is matched to multiple solar system objects, assign the
         # matches a flag of 1
@@ -1864,6 +1860,10 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
             obj_indices = np.where(output_table["ID_SSO"] == obj)[0]
             if len(obj_indices) > 1:
                 output_table["FLAGS_SSO"][obj_indices] += 2
+    
+    # Count number of detected, unflagged solar system objects
+    i_unflagged = np.where(output_table["FLAGS_SSO"] == 0)[0]
+    N_det = len(np.unique(output_table["ID_SSO"][i_unflagged]))
     
     # Set dummy parameter (dummy means that there were no matches found)
     dummy = False
