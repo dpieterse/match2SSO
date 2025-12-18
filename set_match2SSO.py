@@ -45,17 +45,20 @@ get_notified = True
 """
 Beware: in the Google cloud, the tmpFolder should be on a VM, NOT in a bucket
 """
-inputFolder={}; runFolder={}; tmpFolder={}; logFolder={}
+inputFolder={};
 for tel in ["ML1"]:
     inputFolder[tel] = "/idia/projects/meerlicht/data/red/{}/".format(tel)
-    runFolder[tel] = "/idia/projects/meerlicht/RunMatch2SSO/"
-    tmpFolder[tel] = "{}tmp/".format(runFolder[tel])
-    logFolder[tel] = "{}log/".format(runFolder[tel])
+
 for tel in ["BG2", "BG3", "BG4"]:
     inputFolder[tel] = "gs://blackgem-red/{}/".format(tel)
-    runFolder[tel] = "/home/sa_105685508700717199458/RunMatch2SSO/"
-    tmpFolder[tel] = "{}tmp/".format(runFolder[tel])
-    logFolder[tel] = "{}log/".format(runFolder[tel])
+
+
+runFolder={}; tmpFolder={}; logFolder={}
+runFolder["ML"] = "/idia/projects/meerlicht/"
+runFolder["BG"] = "/home/sa_105685508700717199458/"
+for tel in ["ML", "BG"]:
+    tmpFolder[tel] = "{}RunMatch2SSO/tmp/".format(runFolder[tel])
+    logFolder[tel] = "{}RunMatch2SSO/log/".format(runFolder[tel])
 
 
 # Text file listing the software versions used
@@ -70,8 +73,8 @@ obsCodesFile = "/Software/match2SSO/ObsCodes.html"
 # integrate MPCORB to the observation epoch
 JPL_ephemerisFile = {}
 for tel in ["ML", "BG"]:
-    JPL_ephemerisFile[tel] = ("{}/CalFiles/linux_m13000p17000.441"
-                              .format(runFolderBase[tel]))
+    JPL_ephemerisFile[tel] = ("{}CalFiles/linux_m13000p17000.441"
+                              .format(runFolder[tel]))
 
 
 # Relevant data columns from detection catalogue
