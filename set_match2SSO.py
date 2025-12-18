@@ -1,5 +1,11 @@
 import os
 
+# Get ML/BG processing environment (test/staging/production) from BlackBOX settings file
+# This is only needed for the definition of the paths below
+import sys
+sys.path.append("/Software/BlackBOX/Settings")
+import set_blackbox as set_bb
+proc_env = set_bb.proc_env
 
 # Links to databases of known asteroids (MPC) and known comets (JPL)
 URL_asteroidDatabase = "https://www.minorplanetcenter.net/iau/MPCORB/MPCORB.DAT"
@@ -40,17 +46,28 @@ get_notified = True
 # where the value depends on the used telescope
 #==============================================================================
 
-
 # Directory structure
 """
 Beware: in the Google cloud, the tmpFolder should be on a VM, NOT in a bucket
 """
+
 inputFolder={};
 for tel in ["ML1"]:
-    inputFolder[tel] = "/idia/projects/meerlicht/data/red/{}/".format(tel)
+    subdir = ""
+    if proc_env == "test":
+        subdir = "test-env/"
+    elif proc_env == "staging":
+        subdir = "staging-env/"
+    inputFolder[tel] = ("/idia/projects/meerlicht/data/{}red/{}/"
+                        .format(subdir, tel))
 
 for tel in ["BG2", "BG3", "BG4"]:
-    inputFolder[tel] = "gs://blackgem-red/{}/".format(tel)
+    superbucket = ""
+    if proc_env == "test":
+        superbucket = "blackgem-test-env/"
+    elif proc_env == "staging":
+        superbucket = "blackgem-staging-env/"
+    inputFolder[tel] = "gs://{}blackgem-red/{}/".format(superbucket, tel)
 
 
 runFolder={}; tmpFolder={}; logFolder={}
