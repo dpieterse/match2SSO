@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.6.4"
+__version__ = "1.6.5"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -204,7 +204,7 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
     folders = load_and_check_folders(mode)
     if not folders: # Empty tuple
         return
-    input_folder, tmp_folder, log_folder, report_folder = folders
+    input_folder, tmp_folder, log_folder = folders
     
     # Logging
     setup_logfile(logname, log_folder)
@@ -226,13 +226,13 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
         day_mode(night_start, tmp_folder, redownload)
         
     elif mode == "night":
-        night_mode(cat2process, night_start, tmp_folder, report_folder,
-                   savepredictions, makereports)
+        night_mode(cat2process, night_start, tmp_folder, savepredictions,
+                   makereports)
     
     elif mode == "historic" or "hist":
         hist_mode(cat2process, date2process, list2process, night_start,
-                  input_folder, tmp_folder, report_folder, redownload,
-                  savepredictions, makereports)
+                  input_folder, tmp_folder, redownload, savepredictions,
+                  makereports)
     
     LOG.info("Finished running match2SSO.")
     log_timing_memory(t_glob, label="run_match2SSO")
@@ -335,8 +335,7 @@ def day_mode(night_start, tmp_folder, redownload_db):
 # In[ ]:
 
 
-def night_mode(cat_name, night_start, tmp_folder, report_folder,
-               savepredictions, makereports):
+def night_mode(cat_name, night_start, tmp_folder, savepredictions, makereports):
     """
     Run match2SSO on a single transient catalogue. The day mode should have been
     run once before the night mode. This allows the night mode to run in
@@ -366,9 +365,7 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder,
     tmp_folder: string
         Name of the folder that contains the known objects databases and the run
         directory.
-    report_folder: string
-        Name of the folder in which the MPC reports will be stored.
-    savepredictions: boolean 
+    savepredictions: boolean
         Booleon to indicate whether a prediction catalog needs to be made for
         each processed transient catalog. This catalog lists all known SSOs that
         should be in the FOV at the time of the observation.
@@ -421,8 +418,8 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder,
         logging.shutdown()
         return
     
-    _ = match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
-                               night_start, make_kod=False, redownload_db=False,
+    _ = match_single_catalogue(cat_name, rundir, tmp_folder, night_start,
+                               make_kod=False, redownload_db=False,
                                savepredictions=savepredictions,
                                makereports=makereports)
     
@@ -438,7 +435,7 @@ def night_mode(cat_name, night_start, tmp_folder, report_folder,
 
 
 def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
-              report_folder, redownload_db, savepredictions, makereports):
+              redownload_db, savepredictions, makereports):
     """
     The historic mode does the entire processing of match2SSO, including the
     preparation of the known objects database. The historic mode can be run on a
@@ -493,13 +490,11 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
     tmp_folder: string
         Name of the folder that contains the known objects databases and the run
         directory.
-    report_folder: string
-        Name of the folder in which the MPC reports will be stored.
     redownload_db: boolean
         Boolean to indicate whether the asteroid and comet databases should be
         redownloaded. Alternatively the most recently downloaded databases will
         be used.
-    savepredictions: boolean 
+    savepredictions: boolean
         Booleon to indicate whether a prediction catalog needs to be made for
         each processed transient catalog. This catalog lists all known SSOs that
         should be in the FOV at the time of the observation.
@@ -540,10 +535,10 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
             if first_night:
                 match_catalogues_single_night(
                     catalogues2process_1night, noon, redownload_db, tmp_folder,
-                    report_folder, savepredictions, makereports)
+                    savepredictions, makereports)
             else:
                 match_catalogues_single_night(catalogues2process_1night, noon,
-                                              False, tmp_folder, report_folder,
+                                              False, tmp_folder,
                                               savepredictions, makereports)
             first_night = False
         return
@@ -567,8 +562,8 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
             return
     
     match_catalogues_single_night(catalogues2process, night_start,
-                                  redownload_db, tmp_folder, report_folder,
-                                  savepredictions, makereports)
+                                  redownload_db, tmp_folder, savepredictions,
+                                  makereports)
     
     return
 
@@ -577,8 +572,8 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
 
 
 def match_catalogues_single_night(catalogues_single_night, night_start,
-                                  redownload_db, tmp_folder, report_folder,
-                                  savepredictions, makereports):
+                                  redownload_db, tmp_folder, savepredictions,
+                                  makereports):
     """
     Wrapper function that calls the match_single_catalogue function for
     each catalogue in a list that contains catalogues corresponding to
@@ -599,9 +594,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     tmp_folder: string
         Name of the folder containing the known objects databases, or where
         these databases can be downloaded.
-    report_folder: string
-        Name of the folder in which the MPC reports will be stored.
-    savepredictions: boolean 
+    savepredictions: boolean
         Booleon to indicate whether a prediction catalog needs to be made for
         each processed transient catalog. This catalog lists all known SSOs that
         should be in the FOV at the time of the observation.
@@ -631,8 +624,8 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     make_kod = True
     for cat_name in catalogues_single_night:
         made_kod = match_single_catalogue(
-            cat_name, rundir, tmp_folder, report_folder, night_start,
-            make_kod, redownload_db, savepredictions, makereports)
+            cat_name, rundir, tmp_folder, night_start, make_kod, redownload_db,
+            savepredictions, makereports)
         if made_kod:
             make_kod = False #Only make known objects database once
     
@@ -649,7 +642,8 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
         remove_tmp_folder(rundir)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_matchsinglenight, label="match_catalogues_single_night")
+        log_timing_memory(t_matchsinglenight,
+                          label="match_catalogues_single_night")
     
     return
 
@@ -657,13 +651,12 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
 # In[ ]:
 
 
-def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
-                           night_start, make_kod, redownload_db,
-                           savepredictions, makereports):
+def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
+                           redownload_db, savepredictions, makereports):
     """
     Run matching routine on a single transient catalogue. Optionally, a new
     known objects database is created where the reference epoch corresponds to
-    midnight on the observation night. The detections in the transient 
+    midnight on the observation night. The detections in the transient
     catalogue are then matched to the positions of the solar system bodies in
     the known objects database. Matches are saved to an SSO catalogue. The
     function returns a boolean indicating whether a known objects database was
@@ -680,8 +673,6 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
     tmp_folder: string
         Name of the folder containing the known objects databases, or where
         these databases can be downloaded.
-    report_folder: string
-        Name of the folder in which the MPC reports will be stored.
     night_start: datetime object, including time zone
         Noon corresponding to the start of the local night during which the
         observation corresponding to the transient catalogue was made.
@@ -726,8 +717,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, report_folder,
                                                                "_sso.fits")
     predict_cat = sso_cat.replace("_trans", "").replace("_sso.fits",
                                                         "_sso_predict.fits")
-    reportname = "{}{}.txt".format(
-        report_folder, os.path.basename(sso_cat).replace(".fits", "_report"))
+    reportname = sso_cat.replace(".fits", "_report.txt")
     
     # Create predictions and SSO catalogues in case of a dummy (empty) detection
     # catalogue
@@ -2662,13 +2652,11 @@ def load_and_check_folders(mode):
     input_folder = get_par(settingsFile.inputFolder, TEL)
     tmp_folder = get_par(settingsFile.tmpFolder, TEL)
     log_folder = get_par(settingsFile.logFolder, TEL)
-    report_folder = get_par(settingsFile.MPCreportFolder, TEL)
     
     # Check if folder names end with a slash
     input_folder = check_folder_name(input_folder)
     tmp_folder = check_folder_name(tmp_folder)
     log_folder = check_folder_name(log_folder)
-    report_folder = check_folder_name(report_folder)
     
     # Check if critical folders exists. If not, return an empty list.
     if not isdir(input_folder) and (mode == "historic" or mode == "hist"):
@@ -2679,10 +2667,8 @@ def load_and_check_folders(mode):
     # as that is taken care of in the setup_logfile function.
     if not os.path.isdir(tmp_folder):
         os.makedirs(tmp_folder)
-    if report_folder[0:5] != 'gs://' and not isdir(report_folder):
-        os.makedirs(report_folder)
     
-    folders = (input_folder, tmp_folder, log_folder, report_folder)
+    folders = (input_folder, tmp_folder, log_folder)
     
     return folders
 

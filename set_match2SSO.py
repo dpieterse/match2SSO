@@ -45,22 +45,17 @@ get_notified = True
 """
 Beware: in the Google cloud, the tmpFolder should be on a VM, NOT in a bucket
 """
-runFolderBase = {}; runFolder = {}; inputFolder={}; tmpFolder={}; logFolder={};
-MPCreportFolder={}
+inputFolder={}; runFolder={}; tmpFolder={}; logFolder={}
 for tel in ["ML1"]:
-    runFolderBase["ML"] = "/idia/projects/meerlicht"
-    runFolder[tel] = "{}/{}".format(runFolderBase["ML"], tel)
-    inputFolder[tel] = "{}/red/".format(runFolder[tel])
-    tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
-    logFolder[tel] = "{}/log/match2SSO/".format(runFolder[tel])
-    MPCreportFolder[tel] = "{}/mpc/".format(runFolder[tel])
+    inputFolder[tel] = "/idia/projects/meerlicht/data/red/{}/".format(tel)
+    runFolder[tel] = "/idia/projects/meerlicht/RunMatch2SSO/"
+    tmpFolder[tel] = "{}tmp/".format(runFolder[tel])
+    logFolder[tel] = "{}log/".format(runFolder[tel])
 for tel in ["BG2", "BG3", "BG4"]:
-    runFolderBase["BG"] = "/home/sa_105685508700717199458"
-    runFolder[tel] = "{}/Slurm/{}".format(runFolderBase["BG"], tel)
     inputFolder[tel] = "gs://blackgem-red/{}/".format(tel)
-    tmpFolder[tel] = "{}/tmp/match2SSO/".format(runFolder[tel])
-    logFolder[tel] = None
-    MPCreportFolder[tel] = "{}/mpc_reports/{}/".format(runFolderBase["BG"], tel)
+    runFolder[tel] = "/home/sa_105685508700717199458/RunMatch2SSO/"
+    tmpFolder[tel] = "{}tmp/".format(runFolder[tel])
+    logFolder[tel] = "{}log/".format(runFolder[tel])
 
 
 # Text file listing the software versions used
