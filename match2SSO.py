@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.6.5"
+__version__ = "1.6.6"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -327,6 +327,25 @@ def day_mode(night_start, tmp_folder, redownload_db):
     if not find_database_products(rundir):
         return
     
+    # Check for CHK files
+    night_start_utc = night_start.astimezone(pytz.utc).strftime("%Y%m%d")
+    night_end_utc = night_start.astimezone(pytz.utc) + timedelta(days=1)
+    night_end_utc = night_end_utc.strftime("%Y%m%d")
+    if not isfile("{}{}.chk".format(rundir, night_start_utc)):
+        line = "Missing {}.chk!".format(night_start_utc)
+        LOG.critical(line)
+        send_email(line, "critical")
+    elif not isfile("{}{}.chk".format(rundir, night_end_utc)):
+        line = "Missing {}.chk!".format(night_end_utc)
+        LOG.critical(line)
+        send_email(line, "critical")
+    
+    # Check for observatory codes list. Stop processing if it doesn't exist
+    if not isfile("{}ObsCodes.html".format(rundir)):
+        line = "{}ObsCodes.html doesn't exist.".format(rundir)
+        LOG.critical(line)
+        send_email(line, "critical")
+    
     LOG.info("Day mode finished.")
     
     return
@@ -381,42 +400,6 @@ def night_mode(cat_name, night_start, tmp_folder, savepredictions, makereports):
     # Get name of run directory
     rundir = "{}{}/".format(tmp_folder, night_start.strftime("%Y%m%d"))
     LOG.info("Run directory: {}".format(rundir))
-    
-    # Check for known object database products. Stop processing if it doesn't
-    # exist.
-    if not find_database_products(rundir):
-        logging.shutdown()
-        return
-    sso_database = os.readlink("{}mpcorb.sof".format(rundir))
-    LOG.info("Using database {}".format(sso_database))
-    
-    # Check for CHK files
-    night_start_utc = get_night_start_from_date(cat_name, "utc")
-    night_end_utc = night_start_utc + timedelta(days=1)
-    night_start_utc = night_start_utc.strftime("%Y%m%d")
-    night_end_utc = night_end_utc.strftime("%Y%m%d")
-    if not isfile("{}{}.chk".format(rundir, night_start_utc)):
-        line = "Missing {}.chk!".format(night_start_utc)
-        LOG.critical(line)
-        send_email(line, "critical")
-        logging.shutdown()
-        return
-    if not isfile("{}{}.chk".format(rundir, night_end_utc)):
-        line = "Missing {}.chk!".format(night_end_utc)
-        LOG.critical(line)
-        send_email(line, "critical")
-        logging.shutdown()
-        return
-    del night_start_utc
-    del night_end_utc
-    
-    # Check for observatory codes list. Stop processing if it doesn't exist
-    if not isfile("{}ObsCodes.html".format(rundir)):
-        line = "{}ObsCodes.html doesn't exist.".format(rundir)
-        LOG.critical(line)
-        send_email(line, "critical")
-        logging.shutdown()
-        return
     
     _ = match_single_catalogue(cat_name, rundir, tmp_folder, night_start,
                                make_kod=False, redownload_db=False,
