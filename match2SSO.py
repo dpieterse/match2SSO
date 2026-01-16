@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.6.6"
+__version__ = "1.7.0"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -323,9 +323,11 @@ def day_mode(night_start, tmp_folder, redownload_db):
     create_chk_files(night_start + timedelta(days=1), "night_end", mpc_code,
                      rundir)
     
-    # Check for known object database products
-    if not find_database_products(rundir):
-        return
+    # Check for known objects database
+    if not isfile("{}mpcorb.sof".format(rundir)):
+        line = "The known objects database (SOF format) could not be found."
+        LOG.critical(line)
+        send_email(line, "critical")
     
     # Check for CHK files
     night_start_utc = night_start.astimezone(pytz.utc).strftime("%Y%m%d")
@@ -879,41 +881,64 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
         t_db = time.time()
     
     # Downloading and naming asteroid & comet databases
-    # - Download asteroid database if required
-    asteroid_database, asteroid_database_version = download_database(
-        "asteroid", redownload_db, tmp_folder)
+    # - Download asteroid and comet database if required
+    asteroid_database, comet_database, combined_database = download_databases(
+        redownload_db, tmp_folder)
+    unintegrated_database = "{}knownSSOs.sof".format(rundir)
     
-    # - Download comet database if requested
-    if INCLUDE_COMETS:
-        comet_database, comet_database_version = download_database(
-            "comet", redownload_db, tmp_folder)
-    else:
-        LOG.info("Do not download comet database. Instead, create an empty "
-                 "comet database so that there's no matching to comets.")
-        open("{}ELEMENTS.COMET".format(rundir), "w").write("".join([
-            "Num  Name                                     Epoch      q      ",
-            "     e        i         w        Node          Tp       Ref\n---",
-            "---------------------------------------- ------- ----------- ---",
-            "------- --------- --------- --------- -------------- ------------"
-            ]))
-        comet_database_version = None
-    
-    # - Create the symbolic links in the run directory that mpc2sof needs
-    symlink_asteroid_database = "{}MPCORB.DAT".format(rundir)
-    if isfile(symlink_asteroid_database):
-        LOG.info("Removing the old MPCORB.DAT symbolic link")
-        os.unlink(symlink_asteroid_database)
-    os.symlink(asteroid_database, symlink_asteroid_database)
-    LOG.info("Created symbolic link {}".format(symlink_asteroid_database))
-    
-    if INCLUDE_COMETS:
+    # Skip the next three steps if an existing known objects database is used
+    if not combined_database:
+        
+        # - Create the symbolic links in the run directory that mpc2sof needs
+        symlink_asteroid_database = "{}MPCORB.DAT".format(rundir)
+        if isfile(symlink_asteroid_database):
+            LOG.info("Removing the old MPCORB.DAT symbolic link")
+            os.unlink(symlink_asteroid_database)
+        os.symlink(asteroid_database, symlink_asteroid_database)
+        LOG.info("Created symbolic link {} ..."
+                 .format(symlink_asteroid_database))
+        LOG.info("... pointing to {}".format(asteroid_database))
+        
         symlink_comet_database = "{}ELEMENTS.COMET".format(rundir)
-        if isfile(symlink_comet_database):
-            LOG.info("Removing the old ELEMENTS.COMET symbolic link")
-            os.unlink(symlink_comet_database)
-        os.symlink(comet_database, symlink_comet_database)
-        LOG.info("Created symbolic link {}".format(symlink_comet_database))
-    
+        if INCLUDE_COMETS:
+            if isfile(symlink_comet_database):
+                LOG.info("Removing the old ELEMENTS.COMET symbolic link")
+                os.unlink(symlink_comet_database)
+            os.symlink(comet_database, symlink_comet_database)
+            LOG.info("Created symbolic link {} ..."
+                     .format(symlink_comet_database))
+            LOG.info("... pointing to {}".format(comet_database))
+        else:
+            # Create an empty comet database if we won't match to comets
+            LOG.info("Create an empty comet database to prevent comet matches")
+            open(symlink_comet_database, "w").write("".join([
+                 "Num  Name                                     Epoch      q ",
+                 "          e        i         w        Node          Tp     ",
+                 "  Ref\n------------------------------------------- ------- ",
+                 "----------- ---------- --------- --------- --------- ------",
+                 "-------- ------------"]))
+        
+        # - Combine the known comets and asteroids into a SOF file, which
+        #   integrat will then use as input
+        LOG.info("Combining asteroids and comets into knownSSOs.sof file.")
+        t_subtiming = time.time()
+        subprocess.run("mpc2sof", cwd=rundir, check=True)
+        os.rename("{}mpcorb.sof".format(rundir), unintegrated_database)
+        combined_database = check_knownSSOs_file_size(unintegrated_database,
+                                                      tmp_folder)
+        if TIME_FUNCTIONS:
+            log_timing_memory(t_subtiming, label="mpc2sof")
+        
+        # - Remove the downloaded asteroid & comet databases and their symbolic
+        #   links, as we don't need them any more now that we have the SOF file
+        if not KEEP_TMP:
+            os.unlink(symlink_asteroid_database)
+            os.remove(asteroid_database)
+            if INCLUDE_COMETS:
+                os.unlink(symlink_comet_database)
+                os.remove(comet_database)
+            else:
+                os.remove(symlink_comet_database)
     
     # Integrating known objects database
     # - Integrat only accepts UTC midnights. Choose the one closest to local
@@ -926,32 +951,34 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
     midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
     
     # - Define integrated database name
-    if INCLUDE_COMETS:
-        ext = "_com{}.sof".format(comet_database_version)
+    ext = ".sof"
+    if combined_database:
+        file2integrate = combined_database
+        list_name_parts = os.path.basename(combined_database).split("_")
+        asteroid_name_part = list_name_parts[2]
+        if INCLUDE_COMETS:
+            ext = "_{}".format(list_name_parts[-1])
     else:
-        ext = ".sof"
+        file2integrate = unintegrated_database
+        asteroid_name_part = os.path.splitext(os.path.basename(
+            asteroid_database))[0].split("_")[-1].replace("version","ast")
+        if INCLUDE_COMETS:
+            ext = "_com{}.sof".format(os.path.splitext(os.path.basename(
+                comet_database))[0].split("_")[-1].replace("version",""))
     integrated_database = (
-        "{}knownSSOs_epoch{}_ast{}{}"
-        .format(tmp_folder, midnight_utc_str, asteroid_database_version, ext))
+        "{}knownSSOs_epoch{}_{}{}"
+        .format(tmp_folder, midnight_utc_str, asteroid_name_part, ext))
     
-    # - Check if file already exists, in which case the integration can be
-    #   skipped. Otherwise perform the integration.
+    # - Perform the integration
     if isfile(integrated_database):
         LOG.info("Integrated database exists and won't be remade")
     else:
-        # - Combine the known comets and asteroids into a SOF file, which
-        #   integrat will then use as input
-        LOG.info("Combining asteroids and comets into knownSSOs.sof file.")
-        t_subtiming = time.time()
-        subprocess.run("mpc2sof", cwd=rundir, check=True)
-        os.rename("{}mpcorb.sof".format(rundir),
-                  "{}knownSSOs.sof".format(rundir))
-        if TIME_FUNCTIONS:
-            log_timing_memory(t_subtiming, label="mpc2sof")
-        
-        # - Integrate known objects database to local midnight
-        integrate_database("{}knownSSOs.sof".format(rundir),
-                           integrated_database, midnight_utc, tmp_folder)
+        integrate_database(file2integrate, integrated_database, midnight_utc,
+                           tmp_folder)
+    
+    # - Remove the unintegrated database
+    if not KEEP_TMP and isfile(unintegrated_database):
+        os.remove(unintegrated_database)
     
     # Create a symbolic link to direct "mpcorb.sof" to the integrated database,
     # which astcheck will need as input
@@ -960,7 +987,9 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
         LOG.info("Removing the old mpcorb.sof symbolic link")
         os.unlink(symlink_integrated_database)
     os.symlink(integrated_database, symlink_integrated_database)
-    LOG.info("Created symbolic link {}".format(symlink_integrated_database))
+    LOG.info("Created symbolic link {} ..."
+             .format(symlink_integrated_database))
+    LOG.info("... pointing to {}".format(integrated_database))
     
     if TIME_FUNCTIONS:
         log_timing_memory(t_db, label="create_known_objects_database")
@@ -972,150 +1001,132 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
 # In[ ]:
 
 
-def use_existing_database(databaselist, sso_type):
+def use_existing_database(databaselist):
     
     """
-    Select the most recently downloaded unintegrated asteroid/comet database
-    from the input list [databaselist], by the database's name. Empty databases
-    (created when INCLUDE_COMETS = False) should not be in the input list.
-    The function returns the database name & version.
+    Select the most recent epoch of the known objects database from the input
+    list [databaselist]. This tends to work as for the daily/nightly
+    operations, the most recent epoch should have been made with the most
+    recently downloaded databases. If there are multiple databases with the
+    same epoch, the selection is by most recent MPCORB database and after that
+    by the most recent comet database (if comets should be included). The
+    INCLUDE_COMETS flag is taken into consideration in the selection. The
+    function returns the database name.
     
     Parameters:
     -----------
     databaselist: list of strings
-        List of the asteroid / comet databases that were downloaded previously.
-        This can include different database versions.
-    sso_type: string
-        Type of database: asteroid or comet
+        List of existing known objects databases.
     """
-    LOG.info("Selecting {} database that was downloaded in a previous run."
-             .format(sso_type))
     
-    # Select most recently downloaded database
-    database_name = sorted(databaselist)[-1]
+    # Ensure the database contains or does not contain comets, depending on the
+    # INCLUDE_COMETS flag
+    databaselist_selection = []
+    for database_name in databaselist:
+        if INCLUDE_COMETS and "_com" in database_name:
+            databaselist_selection.append(database_name)
+        elif not INCLUDE_COMETS and "_com" not in database_name:
+            databaselist_selection.append(database_name)
     
-    # Retrieve database version from database name
-    database_version = os.path.splitext(
-        os.path.basename(database_name))[0].split("_")[1].replace("version", "")
-    LOG.info("{} database version {}".format(sso_type, database_version))
+    # Select the database corresponding to the most recent epoch
+    database_name = sorted(databaselist_selection)[-1]
     
-    return database_name, database_version
+    return database_name
 
 
 # In[ ]:
 
 
-def download_database(sso_type, redownload_db, tmp_folder):
+def download_databases(redownload_db, tmp_folder):
     
     """
-    Function downloads the asteroid or comet database if desired. After
-    downloading, asteroids with too large uncertainties will be removed from
-    the downloaded asteroid database copy.
-    Alternatively, the function will load the latest downloaded version of the
-    database. The function returns the database name and version number.
+    Function downloads the asteroid and comet database if desired. After
+    downloading, objects with too large uncertainties will be removed from the
+    downloaded database copies.
+    Alternatively, the function will load the latest existing version of the
+    combined known objects database (.sof format).
+    The function returns the names of the downloaded asteroid and comet
+    databases (where the latter is None if comets are exluded and both are None
+    if an existing database is used) and the name of the combined SOF database
+    if an existing database is used (otherwise None is returned for this third
+    return parameter).
     
     Parameters:
     -----------
-    sso_type: string
-        Solar system object type that is in the database. Can be either
-        'asteroid' or 'comet'. Capitals are allowed as well.
     redownload_db: boolean
-        If False, the databases will not be redownloaded. Instead, the name and
-        version number of the latest downloaded database version are returned.
+        If False, the databases will not be redownloaded. Instead, the name of
+        the latest existing database is returned.
     tmp_folder: string
         Folder to save the asteroid and comet databases to that are downloaded
         in this function.
     """
     if TIME_FUNCTIONS:
         t_subfunc = time.time()
-        
-    sso_type = sso_type.lower()
-    if sso_type == "asteroid":
-        database_url = settingsFile.URL_asteroidDatabase
-    elif sso_type == "comet":
-        database_url = settingsFile.URL_cometDatabase
-    else:
-        error_string = "Database type unknown. Cannot be downloaded."
-        LOG.critical(error_string)
-        send_email(error_string, "critical")
-        raise ValueError(error_string)
     
-    # Determine whether database needs to be downloaded
-    existing_databases = list_files("{}{}DB_".format(tmp_folder, sso_type),
-                                    end_str=".dat")
+    # Determine whether database(s) need to be downloaded
+    existing_databases = list_files("{}knownSSOs_epoch".format(tmp_folder),
+                                    end_str=".sof")
     if not redownload_db and existing_databases:
-        database_name, database_version = use_existing_database(
-            existing_databases, sso_type)
-        return database_name, database_version
+        database_name = use_existing_database(existing_databases)
+        LOG.info("Selecting an existing known objects database:")
+        LOG.info(database_name)
+        return None, None, database_name
     
-    # Download database and get database version
-    LOG.info("Downloading {} database...".format(sso_type))
-    database_version = datetime.utcnow().strftime("%Y%m%dT%H%M")
-    database_name = "{}{}DB_version{}.dat".format(tmp_folder, sso_type,
-                                                  database_version)
-    try:
-        req = requests.get(database_url, allow_redirects=True)
-        open(database_name, "wb").write(req.content)
-        LOG.info("{} database version: {}".format(sso_type, database_version))
-    except:
-        line = "Download of {} database failed!".format(sso_type)
-        LOG.error(line)
-        send_email(line)
-        
-        # Use older version of database if it exists
-        if existing_databases:
-            database_name, database_version = use_existing_database(
-                existing_databases, sso_type)
-        else:
-            line = "No database found that can be used!"
-            LOG.critical(line)
-            send_email(line, 'critical')
-        return database_name, database_version
-    
-    # Remove objects with large orbital uncertainties from database
-    if sso_type == "asteroid":
-        select_asteroids_on_uncertainty(database_name)
-    elif sso_type == "comet":
-        select_comets_on_uncertainty(database_name)
-    
-    # Compare database size to that of a previously downloaded database, as a
-    # crude check whether the database was downloaded fully. As both databases
-    # have objects with large orbital uncertainties removed, there may be a
-    # small size difference. We therefore round to the nearest 10,000 bytes
-    # before comparing.
-    if existing_databases:
-        oldDBname = sorted(existing_databases)[-1]
-        size_oldDB = round(os.path.getsize(oldDBname)/10000.)
-        size_newDB = round(os.path.getsize(database_name)/10000.)
-        if size_newDB < 0.95*size_oldDB:
-            line = ("Downloaded database is {}e4 bytes, whereas the old "
-                    "database {} is {}e4 bytes in size. Something went wrong!"
-                    .format(size_newDB, oldDBname, size_oldDB))
+    list_sso_types = ["asteroid"]
+    if INCLUDE_COMETS:
+        list_sso_types.append("comet")
+    database_names = []
+    for sso_type in list_sso_types:
+        if sso_type == "asteroid":
+            database_url = settingsFile.URL_asteroidDatabase
+        elif sso_type == "comet":
+            database_url = settingsFile.URL_cometDatabase
+            if not INCLUDE_COMETS:
+                database_names.append(None)
+                break
+
+        # Download database and get database version
+        LOG.info("Downloading {} database...".format(sso_type))
+        database_version = datetime.utcnow().strftime("%Y%m%dT%H%M")
+        database_name = "{}{}DB_version{}.dat".format(tmp_folder, sso_type,
+                                                      database_version)
+        try:
+            req = requests.get(database_url, allow_redirects=True)
+            open(database_name, "wb").write(req.content)
+            LOG.info("{} database version: {}".format(sso_type,
+                                                      database_version))
+        except:
+            line = "Download of {} database failed!".format(sso_type)
             LOG.error(line)
             send_email(line)
-            LOG.info("Removing just downloaded database")
-            os.remove(database_name)
             
-            # Use older database version (downloaded before)
-            database_name, database_version = use_existing_database(
-                existing_databases, sso_type)
+            # Use older version of database if it exists
+            if existing_databases:
+                database_name = use_existing_database(existing_databases)
+                LOG.info("Selecting an existing known objects database:")
+                LOG.info(database_name)
+            else:
+                line = "No database found that can be used!"
+                LOG.critical(line)
+                send_email(line, 'critical')
             
             if TIME_FUNCTIONS:
-                log_timing_memory(t_subfunc, label="downloadDatabase ({})"
-                                  .format(sso_type))
-            return database_name, database_version  
-    
-    #if not KEEP_TMP and len(existing_databases) > 0:
-    #    LOG.info("Removing older {} database versions.".format(sso_type))
-    #    for old_database in existing_databases:
-    #        os.remove(old_database)
-    #        LOG.info("Removed {}.".format(old_database))
+                log_timing_memory(t_subfunc, label="download_databases")
+            
+            return None, None, database_name
+        
+        # Remove objects with large orbital uncertainties from database
+        if sso_type == "asteroid":
+            select_asteroids_on_uncertainty(database_name)
+        elif sso_type == "comet":
+            select_comets_on_uncertainty(database_name)
+        
+        database_names.append(database_name)
     
     if TIME_FUNCTIONS:
-        log_timing_memory(t_subfunc, label="download_database ({})"
-                          .format(sso_type))
+        log_timing_memory(t_subfunc, label="download_databases")
     
-    return database_name, database_version
+    return database_names[0], database_names[1], None
 
 
 # In[ ]:
@@ -1295,7 +1306,7 @@ def select_comets_on_uncertainty(comet_database):
 def integrate_database(original_database, integrated_database, midnight_utc,
                        tmp_folder):
     """
-    Function integrates known solar system objects database (in sof-format) to
+    Function integrates known solar system objects database (in .sof format) to
     the observation epoch and saves the integrated database to a .sof file.
     
     Parameters:
@@ -2968,51 +2979,6 @@ def check_input_catalogue(cat_name):
 # In[ ]:
 
 
-def find_database_products(rundir):
-    
-    """
-    This function checks if the database products that astcheck needs in order
-    to process transient catalogues are located in the run directory. These are
-    the known objects database, the symbolic link to the asteroid database
-    (needed for reading out the asteroid database version) and ELEMENTS.COMET,
-    which is either an empty comet database (if comets should not be included
-    in the matching) or a symbolic link to the comet database used (again 
-    needed to read out the version). The function also indirectly checks for
-    the existence of the run directory. A boolean is returned: True if all is
-    well and False if something is missing.
-    
-    Parameters:
-    -----------
-    rundir: string
-        Directory in which astcheck will be run.
-    """
-    
-    # Check for known objects database
-    if not isfile("{}mpcorb.sof".format(rundir)):
-        line = "The known objects database (SOF format) could not be found."
-        LOG.critical(line)
-        send_email(line, "critical")
-        return False
-    
-    # Check for symbolic links pointing to the used version of the SSO
-    # databases
-    if not isfile("{}MPCORB.DAT".format(rundir)):
-        line = "MPCORB.DAT could not be found"
-        LOG.critical(line)
-        send_email(line, "critical")
-        return False
-    if not isfile("{}ELEMENTS.COMET".format(rundir)):
-        line = "ELEMENTS.COMET could not be found"
-        LOG.critical(line)
-        send_email(line, "critical")
-        return False
-    
-    return True
-
-
-# In[ ]:
-
-
 def create_chk_files(noon, noon_type, mpc_code, rundir):
     
     """
@@ -3124,6 +3090,60 @@ def retrieve_version(package_name):
         vers = None
     
     return vers
+
+
+# In[ ]:
+
+
+def check_knownSSOs_file_size(database_name, tmp_folder):
+    
+    """
+    Check if the database downloads were of good quality, by comparing the file
+    size of the combined asteroid and comet database against that of an older
+    (integrated) database. We round to the nearest 10,000 bytes and use a five
+    percent error margin, to allow for small changes between database versions.
+    
+    The function returns None if all is okay (or if the check couldn't be
+    performed when there are no databases to compare to). If the size is
+    incorrect, this function will return the name of the existing database to
+    use instead.
+    
+    Parameters:
+    -----------
+    database_name: string
+        Name (incl path) of the database to check the size of
+    tmp_folder: string
+        Folder where existing (integrated) databases are stored.
+    """
+    
+    existing_databases = list_files("{}knownSSOs_epoch".format(tmp_folder),
+                                    end_str=".sof")
+    if not existing_databases:
+        return None
+    
+    # Select the most recent database (by epoch), taking into account
+    # whether comets are included or not
+    existing_database = use_existing_database(existing_databases)
+    
+    # Check size
+    size_oldDB = round(os.path.getsize(existing_database)/10000.)
+    size_newDB = round(os.path.getsize(database_name)/10000.)
+    if size_newDB < 0.95*size_oldDB:
+        line = ("Newly made database ({}) is {}e4 bytes, whereas the old "
+                "database ({}) is {}e4 bytes in size. Something went wrong!"
+                .format(database_name, size_newDB, existing_database,
+                        size_oldDB))
+        LOG.error(line)
+        send_email(line)
+        
+        if not KEEP_TMP:
+            LOG.info("Removing the new database")
+            os.remove(database_name)
+        
+        LOG.info("Using old database instead")
+        return existing_database
+    
+    return None
 
 
 # ### Subroutines that support the use of Google Cloud systems
