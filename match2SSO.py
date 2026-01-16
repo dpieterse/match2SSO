@@ -2006,11 +2006,11 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     
     # Move report from run directory to final destination
     LOG.info("Moving report to {}".format(destination))
-    copy_file(reportname, destination_file, move=True)
     if isfile(destination_file):
         LOG.info("MPC report {} is overwritten.".format(destination_file))
     else:
         LOG.info("MPC report saved to {}".format(destination_file))
+    copy_file(reportname, destination_file, move=True)
     
     if TIME_FUNCTIONS:
         log_timing_memory(t_report, label="create_MPC_report")
