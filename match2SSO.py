@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.7.0"
+__version__ = "1.7.1"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -125,7 +125,8 @@ TIME_FUNCTIONS = bool(settingsFile.time_functions)
 
 def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
                   list2process=None, logname=None, redownload=True,
-                  savepredictions=True, makereports=True, overwrite=False):
+                  quick=False, savepredictions=True, makereports=True,
+                  overwrite=False):
     """
     Run match2SSO on the input catalogue(s)/date. match2SSO can be run in
     different mode / date2process / cat2process / list2process combinations.
@@ -162,10 +163,16 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
         Boolean to indicate whether the asteroid and comet databases should be
         redownloaded. Alternatively the most recently downloaded databases will
         be used. Parameter is not relevant for the night mode.
-    savepredictions: boolean 
+    quick: boolean
+        Only of interest when redownload = False. If quick = True, instead of
+        selecting the most recent databases, the one with its epoch closest to
+        the observation night will be selected to speed up the integration of
+        the known objects database. Warning: this does not correspond to the
+        latest downloaded database, so orbits and SSO lists may be outdated.
+    savepredictions: boolean
         Booleon to indicate whether a prediction catalog needs to be made for
         each processed transient catalog. This catalog lists all known SSOs that
-        should be in the FOV at the time of the observation. Parameter is not 
+        should be in the FOV at the time of the observation. Parameter is not
         relevant for the day mode.
     makereports: boolean
         Booleon to indicate whether MPC reports of all detected SSOs are
@@ -223,7 +230,7 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
     
     # Run match2SSO
     if mode == "day":
-        day_mode(night_start, tmp_folder, redownload)
+        day_mode(night_start, tmp_folder, redownload, quick)
         
     elif mode == "night":
         night_mode(cat2process, night_start, tmp_folder, savepredictions,
@@ -231,7 +238,7 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
     
     elif mode == "historic" or "hist":
         hist_mode(cat2process, date2process, list2process, night_start,
-                  input_folder, tmp_folder, redownload, savepredictions,
+                  input_folder, tmp_folder, redownload, quick, savepredictions,
                   makereports)
     
     LOG.info("Finished running match2SSO.")
@@ -244,7 +251,7 @@ def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
 # In[ ]:
 
 
-def day_mode(night_start, tmp_folder, redownload_db):
+def day_mode(night_start, tmp_folder, redownload_db, quick_integration):
     
     """
     Run match2SSO in day mode to prepare for the night mode. The day mode
@@ -276,6 +283,11 @@ def day_mode(night_start, tmp_folder, redownload_db):
         Boolean to indicate whether the asteroid (and comet) databases should be
         redownloaded. Alternatively the most recently downloaded databases will
         be used.
+    quick_integration: boolean
+        Only of interest when redownload_db=False. If quick_integration=True,
+        instead of selecting the most recent databases, the one with its epoch
+        closest to the observation night will be selected to speed up the
+        integration (step 3 listed above).
     """
     
     LOG.info("Running the day mode.")
@@ -314,7 +326,8 @@ def day_mode(night_start, tmp_folder, redownload_db):
     
     # Download and integrate known object databases
     midnight = night_start + timedelta(days=0.5)
-    create_known_objects_database(midnight, rundir, tmp_folder, redownload_db)
+    create_known_objects_database(midnight, rundir, tmp_folder, redownload_db,
+                                  quick_integration)
     
     # Create CHK files that astcheck needs in advance, to allow parallelisation
     # in the night mode
@@ -357,6 +370,7 @@ def day_mode(night_start, tmp_folder, redownload_db):
 
 
 def night_mode(cat_name, night_start, tmp_folder, savepredictions, makereports):
+    
     """
     Run match2SSO on a single transient catalogue. The day mode should have been
     run once before the night mode. This allows the night mode to run in
@@ -405,6 +419,7 @@ def night_mode(cat_name, night_start, tmp_folder, savepredictions, makereports):
     
     _ = match_single_catalogue(cat_name, rundir, tmp_folder, night_start,
                                make_kod=False, redownload_db=False,
+                               quick_integration=False,
                                savepredictions=savepredictions,
                                makereports=makereports)
     
@@ -420,7 +435,7 @@ def night_mode(cat_name, night_start, tmp_folder, savepredictions, makereports):
 
 
 def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
-              redownload_db, savepredictions, makereports):
+              redownload_db, quick_integration, savepredictions, makereports):
     """
     The historic mode does the entire processing of match2SSO, including the
     preparation of the known objects database. The historic mode can be run on a
@@ -479,6 +494,11 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
         Boolean to indicate whether the asteroid and comet databases should be
         redownloaded. Alternatively the most recently downloaded databases will
         be used.
+    quick_integration: boolean
+        Only of interest when redownload_db=False. If quick_integration=True,
+        instead of selecting the most recent databases, the one with its epoch
+        closest to the observation night will be selected to speed up the
+        integration (step 3 mentioned above).
     savepredictions: boolean
         Booleon to indicate whether a prediction catalog needs to be made for
         each processed transient catalog. This catalog lists all known SSOs that
@@ -497,7 +517,8 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
         
         # Open catalogue list
         with open(catlist, "r") as catalogue_list:
-            catalogues2process = [name.strip() for name in catalogue_list                                   if name[0] != "#"]
+            catalogues2process = [
+                name.strip() for name in catalogue_list if name[0] != "#"]
         
         # Order by observation date (noon that equals the start of the
         # observation day)
@@ -519,12 +540,14 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
                                                              "%Y%m%d %H%M%S"))
             if first_night:
                 match_catalogues_single_night(
-                    catalogues2process_1night, noon, redownload_db, tmp_folder,
-                    savepredictions, makereports)
+                    catalogues2process_1night, noon, redownload_db,
+                    quick_integration, tmp_folder, savepredictions,
+                    makereports)
             else:
                 match_catalogues_single_night(catalogues2process_1night, noon,
-                                              False, tmp_folder,
-                                              savepredictions, makereports)
+                                              False, quick_integration,
+                                              tmp_folder, savepredictions,
+                                              makereports)
             first_night = False
         return
     
@@ -547,8 +570,8 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
             return
     
     match_catalogues_single_night(catalogues2process, night_start,
-                                  redownload_db, tmp_folder, savepredictions,
-                                  makereports)
+                                  redownload_db, quick_integration, tmp_folder,
+                                  savepredictions, makereports)
     
     return
 
@@ -557,8 +580,8 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
 
 
 def match_catalogues_single_night(catalogues_single_night, night_start,
-                                  redownload_db, tmp_folder, savepredictions,
-                                  makereports):
+                                  redownload_db, quick_integration, tmp_folder,
+                                  savepredictions, makereports):
     """
     Wrapper function that calls the match_single_catalogue function for
     each catalogue in a list that contains catalogues corresponding to
@@ -576,6 +599,11 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
         Boolean indicating whether the known object databases need to be
         redownloaded, or alternatively if existing downloaded versions of the
         databases can be used for the matching.
+    quick_integration: boolean
+        Only of interest when redownload_db=False. If quick_integration=True,
+        instead of selecting the most recent databases, the one with its epoch
+        closest to the observation night will be selected to speed up the
+        integration.
     tmp_folder: string
         Name of the folder containing the known objects databases, or where
         these databases can be downloaded.
@@ -610,7 +638,7 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
     for cat_name in catalogues_single_night:
         made_kod = match_single_catalogue(
             cat_name, rundir, tmp_folder, night_start, make_kod, redownload_db,
-            savepredictions, makereports)
+            quick_integration, savepredictions, makereports)
         if made_kod:
             make_kod = False #Only make known objects database once
     
@@ -637,11 +665,12 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
 
 
 def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
-                           redownload_db, savepredictions, makereports):
+                           redownload_db, quick_integration, savepredictions,
+                           makereports):
     """
     Run matching routine on a single transient catalogue. Optionally, a new
     known objects database is created where the reference epoch corresponds to
-    midnight on the observation night. The detections in the transient
+    UTC midnight on the observation night. The detections in the transient
     catalogue are then matched to the positions of the solar system bodies in
     the known objects database. Matches are saved to an SSO catalogue. The
     function returns a boolean indicating whether a known objects database was
@@ -672,7 +701,12 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
         asteroid and comet databases will need to be redownloaded before making
         the known objects database. Alternatively, the most recent, previously
         downloaded version of the databases are used.
-    savepredictions: boolean 
+    quick_integration: boolean
+        Only of interest when redownload_db=False. If quick_integration=True,
+        instead of selecting the most recent databases, the one with its epoch
+        closest to the observation night will be selected to speed up the
+        integration.
+    savepredictions: boolean
         Booleon to indicate whether a prediction catalog needs to be made for
         each processed transient catalog. This catalog lists all known SSOs that
         should be in the FOV at the time of the observation.
@@ -777,7 +811,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
     if make_kod:
         midnight = night_start + timedelta(days=0.5)
         create_known_objects_database(midnight, rundir, tmp_folder,
-                                      redownload_db)
+                                      redownload_db, quick_integration)
         made_kod = True
         
         # Make symbolic link to observatory codes list if it doesn't exist yet
@@ -842,7 +876,8 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
 # * Create MPC report to allow one to report observations to the MPC
 
 # ### Step 1: create known objects database
-# Call wrapper function create_known_objects_database() to either select an existing database or to:
+# Call wrapper function create_known_objects_database() to either select an
+# existing database or to:
 # - Download asteroid & comet databases
 # - Discard asteroids with high orbital uncertainties
 # - Combine asteroid & comet databases into one 'known objects' database
@@ -851,7 +886,8 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
 # In[ ]:
 
 
-def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
+def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db,
+    quick_integration):
     
     """
     Wrapper function to create a known (solar system) objects database.
@@ -875,15 +911,31 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
         If False, the databases will not be redownloaded. They will only be
         integrated to the observation epoch (midnight on the observation
         night).
+    quick_integration: boolean
+        Integrating to an epoch years from the reference epoch can take very
+        long. This setting can be set to True if the priority is to speed up
+        the integration. The database with the closest reference epoch will be
+        selected, so that the integration step will be quicker. This will only
+        work if redownload_db = False. Warning: the version of the known
+        objects databases may be older in this case and thus not contain all
+        solar system objects or the latest orbital parameters.
     """
     #mem_use(label="at start of create_known_objects_database")
     if TIME_FUNCTIONS:
         t_db = time.time()
     
+    # Convert local midnight to the closest UTC midnight
+    date_midnight = midnight.date()
+    if midnight.hour >= 12.:
+        date_midnight = date_midnight + timedelta(days=1)
+    midnight_utc = pytz.utc.localize(datetime.strptime(" ".join([
+        date_midnight.strftime("%Y%m%d"), "000000"]), "%Y%m%d %H%M%S"))
+    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
+    
     # Downloading and naming asteroid & comet databases
     # - Download asteroid and comet database if required
     asteroid_database, comet_database, combined_database = download_databases(
-        redownload_db, tmp_folder)
+        redownload_db, tmp_folder, quick_integration, midnight_utc_str)
     unintegrated_database = "{}knownSSOs.sof".format(rundir)
     
     # Skip the next three steps if an existing known objects database is used
@@ -1001,7 +1053,7 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db):
 # In[ ]:
 
 
-def use_existing_database(databaselist):
+def use_existing_database(databaselist, select_closest_epoch, epoch_ref=None):
     
     """
     Select the most recent epoch of the known objects database from the input
@@ -1017,19 +1069,48 @@ def use_existing_database(databaselist):
     -----------
     databaselist: list of strings
         List of existing known objects databases.
+    select_closest_epoch: boolean
+        Instead of selecting the database with the most recent epoch (default),
+        select the one with the closest reference epoch.
+    epoch_ref: time string in yyyymmddThhmm format
+        Epoch to compare to, when select_closest_epoch = True.
     """
     
     # Ensure the database contains or does not contain comets, depending on the
     # INCLUDE_COMETS flag
     databaselist_selection = []
+    epochs = []
     for database_name in databaselist:
         if INCLUDE_COMETS and "_com" in database_name:
             databaselist_selection.append(database_name)
         elif not INCLUDE_COMETS and "_com" not in database_name:
             databaselist_selection.append(database_name)
+        if select_closest_epoch:
+            epoch_str = os.path.basename(database_name).split("_")[1]
+            epochs.append(epoch_str.replace("epoch",""))
     
-    # Select the database corresponding to the most recent epoch
-    database_name = sorted(databaselist_selection)[-1]
+    if select_closest_epoch:
+        t_ref = Time(datetime.strptime(epoch_ref, "%Y%m%dT%H%M%S"))
+        
+        # Reverse order the epochs, so that if there are multiple epochs
+        # equally far from the reference epoch, the most recent one is picked
+        epochs = sorted(epochs, reverse=True)
+        t_diff = []
+        for ep in epochs:
+            t_ep = Time(datetime.strptime(ep, "%Y%m%dT%H%M%S"))
+            t_diff.append(np.abs(t_ep-t_ref).value)
+        i_closest = np.argmin(t_diff)
+        epoch_closest = "_epoch{}".format(epochs[i_closest])
+        
+        # Select the database with its epoch closest to the reference epoch. If
+        # there are multiple versions, take the one with the most recent MPCORB
+        # version.
+        database_name = sorted([
+            DB for DB in databaselist_selection if epoch_closest in DB])[-1]
+    
+    else:
+        # Select the database corresponding to the most recent epoch
+        database_name = sorted(databaselist_selection)[-1]
     
     return database_name
 
@@ -1037,8 +1118,8 @@ def use_existing_database(databaselist):
 # In[ ]:
 
 
-def download_databases(redownload_db, tmp_folder):
-    
+def download_databases(redownload_db, tmp_folder, select_closest_epoch,
+                       epoch_ref):
     """
     Function downloads the asteroid and comet database if desired. After
     downloading, objects with too large uncertainties will be removed from the
@@ -1059,6 +1140,11 @@ def download_databases(redownload_db, tmp_folder):
     tmp_folder: string
         Folder to save the asteroid and comet databases to that are downloaded
         in this function.
+    select_closest_epoch: boolean
+        Speed up the intgration by selecting the closest epoch to the
+        reference epoch instead of the latest one. Only if redownload_db=False.
+    epoch_ref: time string in yyyymmddThhmm format
+        Epoch to compare to, when select_closest_epoch = True.
     """
     if TIME_FUNCTIONS:
         t_subfunc = time.time()
@@ -1067,8 +1153,14 @@ def download_databases(redownload_db, tmp_folder):
     existing_databases = list_files("{}knownSSOs_epoch".format(tmp_folder),
                                     end_str=".sof")
     if not redownload_db and existing_databases:
-        database_name = use_existing_database(existing_databases)
-        LOG.info("Selecting an existing known objects database:")
+        database_name = use_existing_database(existing_databases,
+                                              select_closest_epoch, epoch_ref)
+        if select_closest_epoch:
+            logtext = "closest reference epoch"
+        else:
+            logtext = "latest version"
+        LOG.info("Selecting an existing known objects database ({}):"
+                 .format(logtext))
         LOG.info(database_name)
         return None, None, database_name
     
@@ -1102,7 +1194,9 @@ def download_databases(redownload_db, tmp_folder):
             
             # Use older version of database if it exists
             if existing_databases:
-                database_name = use_existing_database(existing_databases)
+                database_name = use_existing_database(existing_databases,
+                                                      select_closest_epoch,
+                                                      epoch_ref)
                 LOG.info("Selecting an existing known objects database:")
                 LOG.info(database_name)
             else:
@@ -3123,7 +3217,7 @@ def check_knownSSOs_file_size(database_name, tmp_folder):
     
     # Select the most recent database (by epoch), taking into account
     # whether comets are included or not
-    existing_database = use_existing_database(existing_databases)
+    existing_database = use_existing_database(existing_databases, False)
     
     # Check size
     size_oldDB = round(os.path.getsize(existing_database)/10000.)
@@ -3751,6 +3845,16 @@ if __name__ == "__main__":
                         "comet databases should be redownloaded. Alternatively"
                         " the most recently downloaded databases will be used.")
     
+    PARSER.add_argument("--quick", type=str2bool, default=False,
+                        help="Boolean. If redownload is False, by default the "
+                        "most recently downloaded SSO database will be used. "
+                        "If you have a preference for speed over accuracy, "
+                        "with this parameter you can instead elect to use the "
+                        "previously downloaded SSO database for which its "
+                        "reference epoch is the closest to the observations. "
+                        "This speeds up the integration step, but an older "
+                        "database version may be used in this case.")
+    
     PARSER.add_argument("--savepredictions", type=str2bool, default=False,
                         help="Boolean to indicate whether a prediction catalog "
                         "needs to be made for each processed source catalog."
@@ -3771,6 +3875,6 @@ if __name__ == "__main__":
     run_match2SSO(tel=ARGS.telescope, mode=ARGS.mode, cat2process=ARGS.catalog,
                   date2process=ARGS.date, list2process=ARGS.catlist,
                   logname=ARGS.logname, redownload=ARGS.redownload,
-                  savepredictions=ARGS.savepredictions, 
+                  quick=ARGS.quick, savepredictions=ARGS.savepredictions,
                   makereports=ARGS.makereports, overwrite=ARGS.overwrite)
 
