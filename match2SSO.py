@@ -2038,7 +2038,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     # large part, the MPC-formatted file content will therefore be copied over.
     detections_mpcformat = pd.read_fwf(mpcformat_file, widths=[14, 66],
                                        names=["char1to14", "char15to80"],
-                                       dtype={"char1to14":np.int32, 
+                                       dtype={"char1to14":np.int32,
                                               "char15to80":str})
     
     # For each detection that was matched to a known solar system object,
@@ -2468,8 +2468,8 @@ def wrapper_pack_provisional_designation(full_designation):
     for survey_string in survey_strings:
         if (re.match(r"^[0-9]{4}\s[A-Z]", full_designation)
                 and full_designation.endswith(survey_string)):
-            packed_designation = "{}S{}".format(survey_string.replace("-", ""),
-                                                full_designation[:4])
+            packed_designation = " {}S{}".format(
+                survey_string.replace("-", ""), full_designation[:4])
             return packed_designation
     
     pack_year = {18: "I", 19: "J", 20: "K"}
