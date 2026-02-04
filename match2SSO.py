@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -2443,7 +2443,9 @@ def wrapper_pack_provisional_designation(full_designation):
     Wrapper function for packing provisional minor planet designations into
     their packed forms. The function first checks whether [full_designation] is
     a survey designation. If so, it is packed using the definitions in
-    https://www.minorplanetcenter.net/iau/info/PackedDes.html#prov
+    www.minorplanetcenter.net/iau/info/PackedDes.html#prov and
+    www.minorplanetcenter.net/mpcops/documentation/provisional-designation-
+    definition/#extended_packed_provid/
     
     If the designation is not a survey designation, the function determines
     whether it belongs to a comet or an asteroid. For comets, we call the
@@ -2471,6 +2473,35 @@ def wrapper_pack_provisional_designation(full_designation):
             packed_designation = " {}S{}".format(
                 survey_string.replace("-", ""), full_designation[:4])
             return packed_designation
+    
+    # Use the extended packing scheme if there are more than 15500 new
+    # designations assigned to objects in half a month
+    designation = full_designation.split('/')[-1].split('-')[0]
+    N_designation = number_of_half_month_designation(designation)
+    
+    if N_designation > 15500:
+        if '/' in full_designation:
+            comet_letter = full_designation.split('/')[0]
+            if '-' in full_designation:
+                line = ("Comet fragment letter cannot be added to extended "
+                        "packing scheme")
+                LOG.error(line)
+                send_email(line)
+        else:
+            comet_letter = ' ' # asteroid
+        
+        N_rest = N_designation - 15501
+        rest, quotient4 = divmod(N_rest, 62)
+        rest, quotient3 = divmod(rest, 62)
+        rest, quotient2 = divmod(rest, 62)
+        rest, quotient1 = divmod(rest, 62)
+        packed_designation = ("{}_{}{}{}{}{}{}"
+    	    .format(comet_letter, abbreviate_number(designation[2:4]),
+                    designation[5], abbreviate_number(quotient1),
+                    abbreviate_number(quotient2),
+                    abbreviate_number(quotient3),
+                    abbreviate_number(quotient4)))
+        return packed_designation
     
     pack_year = {18: "I", 19: "J", 20: "K"}
     
@@ -2508,6 +2539,7 @@ def pack_provisional_designation_asteroid(full_designation, pack_year):
         Dictionary needed to pack the first two numbers of the year (indicating
         the century) into a single letter, according to the MPC standard.
     """
+    full_designation = full_designation.strip()
     
     if int(full_designation[:2]) not in pack_year.keys():
         line = ("Provisional designation of asteroid {} cannot be packed. "
@@ -2630,14 +2662,46 @@ def pack_provisional_designation_comet(full_designation, pack_year):
 # In[ ]:
 
 
+def number_of_half_month_designation(designation):
+    
+    """
+    Input provisional [designation] should be formatted as "yyyy LLx" where
+    yyyy is the year, L is a capital letter and x is an integer (can be
+    multiple digits).
+    
+    The second letter and the number at the end of a provisional designation
+    signify the how many-th object (that was given a designation) in the half
+    month it corresponds to. This function can be used to convert to that order
+    number, taking into account that the letter I is never used as an order
+    letter and only capital letters are used. Works for comets and asteroids.
+    """
+    if not re.match(r"^[0-9]{4}\s[A-Z]{2}", designation):
+        print(designation, "does not match format")
+        return 0
+    
+    letter_dict = {letter: index for index, letter in enumerate(
+        ascii_uppercase.replace("I",""), start=1)}
+    
+    N_corresponding2letter = letter_dict[designation[6]]
+    N_cycle = designation[7:]
+    if N_cycle == "":
+        N_cycle = 0
+    N = len(letter_dict)*int(N_cycle) + N_corresponding2letter
+    
+    return N
+
+
+# In[ ]:
+
+
 def abbreviate_number(num):
     
     """
     Number packing function needed to pack MPC designations.
     """
     
-    num_dict = {str(index): letter for index, letter in 
-                enumerate("".join([ascii_uppercase, ascii_lowercase]), start=10)}
+    num_dict = {str(index): letter for index, letter in
+        enumerate("".join([ascii_uppercase, ascii_lowercase]), start=10)}
     
     if int(num) > 9:
         return num_dict[str(num)]
