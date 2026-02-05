@@ -2676,7 +2676,6 @@ def number_of_half_month_designation(designation):
     letter and only capital letters are used. Works for comets and asteroids.
     """
     if not re.match(r"^[0-9]{4}\s[A-Z]{2}", designation):
-        print(designation, "does not match format")
         return 0
     
     letter_dict = {letter: index for index, letter in enumerate(
