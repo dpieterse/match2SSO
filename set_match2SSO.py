@@ -89,7 +89,12 @@ for tel in ["ML", "BG"]:
     logFolder[tel] = "{}RunMatch2SSO/log/".format(runFolder[tel])
 
 
-# Text file listing the software versions used
+# If you do not care about specifying software versions in the headers of the
+# match2SSO output catalogues, just use an empty string for versionsFile below.
+# If you do want to include the latest lunar and jpl_eph versions in the
+# headers, make a text file listing lunar and jpl_eph on different lines, where
+# after the software name and an extra space, the version number is listed.
+# E.g. "lunar a693", where a693 is the name of the last lunar commit.
 versionsFile = "/Software/versions.txt"
 
 
