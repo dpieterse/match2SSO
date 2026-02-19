@@ -1,11 +1,17 @@
 import os
 
-# Get ML/BG processing environment (test/staging/production) from BlackBOX settings file
-# This is only needed for the definition of the paths below
+proc_env = ""
+#==============================================================================
+# Get ML/BG processing environment (test/staging/production) from BlackBOX
+# settings file. This is only needed for the definition of the paths in this
+# settings file. If you're using a telescope that is NOT BlackGEM or MeerLICHT,
+# comment out the next four lines:
 import sys
 sys.path.append("/Software/BlackBOX/Settings")
 import set_blackbox as set_bb
 proc_env = set_bb.proc_env
+#==============================================================================
+
 
 # Links to databases of known asteroids (MPC) and known comets (JPL)
 URL_asteroidDatabase = "https://www.minorplanetcenter.net/iau/MPCORB/MPCORB.DAT"
@@ -43,7 +49,12 @@ get_notified = True
 
 #==============================================================================
 # All parameters below may (allowed, not required) be specified as dictionaries
-# where the value depends on the used telescope
+# where the value depends on the used telescope. If dependent on the telescope,
+# use the telescope name/abbreviation you specify with --telescope when you run
+# match2SSO from the command line. Alternatively, you may use the alphabetic
+# part of the telescope name/abbreviation in the dictionaries below. E.g. when
+# specifying "BG2" or "BG" the value will be valid for the BlackGEM-2 telescope
+# or all BlackGEM telescopes (BG2+BG3+BG4), respectively.
 #==============================================================================
 
 # Directory structure
@@ -117,19 +128,24 @@ matchingRadius = 20 #matching radius in arcsec
 limitingMagnitude = 25 #limiting V-magnitude
 
 
-# Maximal number of asteroids that are returned as a match by astcheck.
+# Maximal number of asteroids that are returned as a match by astcheck. Set it
+# high enough so that, if/when match2SSO makes prediction catalogues, the total
+# number of solar system objects in the FOV is lower than this number.
+# Otherwise the list of asteroids used for the prediction catalogues will be
+# truncated.
 maximalNumberOfAsteroids = 1000
 
 
 # Telescope parameters
 """
-See pytz.all_timezones within Python for possible time zones.
-For a square FOV, the FOV_width corresponds to the width and height of the
-FOV. For a circular FOV, the FOV_width is the diameter of the circle.
+Run "import pytz; print(pytz.all_timezones)" within Python for possible time
+zones. For a square FOV, the FOV_width corresponds to the width and height of
+the FOV. For a circular FOV, the FOV_width is the diameter of the circle.
 """
 timeZoneTelescope = {"ML": "Africa/Johannesburg", "BG": "America/Santiago"}
 FOV_width = 1.6544 # Size of the FOV in degrees
 mpc_code = {"ML": "L66", "BG": "X17"} # only used in day mode
+
 
 # Maximal orbital uncertainty parameter
 """
@@ -141,7 +157,8 @@ those with letter uncertainties.
 maxUncertainty = 2
 
 
-# Header for the MPC report (listed per MPC observatory code)
+# Header for the MPC report (listed per MPC observatory code). The report is
+# not automatically sent out to the Minor Planet Center, so no need to worry.
 MPCreportHeader = "".join([
         "CON Radboud University, Houtlaan 4, 6525XZ, Nijmegen, The Netherlands\n",
         "CON [d.pieterse@astro.ru.nl]\n",
