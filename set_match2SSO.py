@@ -13,8 +13,8 @@ URL_cometDatabase = "https://ssd.jpl.nasa.gov/dat/ELEMENTS.COMET"
 
 
 # CPP library to convert from __cplusplus macro to the language version string
-CPPmacro2version = {"202002L":"C++20", "201703L":"C++17", "201402L":"C++14",
-                    "201103L":"C++11", "199711L":"C++98"}
+CPPmacro2version = {"202302L":"C++23", "202002L":"C++20", "201703L":"C++17",
+                    "201402L":"C++14", "201103L":"C++11", "199711L":"C++98"}
 
 
 # Switches
