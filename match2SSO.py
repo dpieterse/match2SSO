@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.7.2"
+__version__ = "1.7.3"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -1453,8 +1453,8 @@ def integrate_database(original_database, integrated_database, midnight_utc,
 # In[ ]:
 
 
-def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions,
-                is_FOV_circle=False):
+def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
+    
     """
     Use astcheck to predict which solar system objects are in the FOV during the
     observation. Predictions can be made for a circular or square FOV. The
@@ -1482,9 +1482,6 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions,
         Booleon to indicate whether the prediction catalog needs to be saved to
         file. If False, the catalogue won't be saved, but this function is just
         used to calculate the number of SSOs bright enough to be detected.
-    is_FOV_circle: boolean
-        Boolean indicating if the FOV is circular. If False, a square FOV is
-        assumed where the sides are aligned with RA & Dec.
     """
     #mem_use(label="at start of predictions")
     
@@ -1534,6 +1531,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions,
         "_light", "").replace("_trans.fits", "_sso_predictions.txt"))
     output_file_content = open(output_file, "w")
     
+    is_FOV_circle = get_par(settingsFile.FOV_is_circle)
     if is_FOV_circle:
         field_radius = 3600.*get_par(settingsFile.FOV_width, TEL)/2.
     else:

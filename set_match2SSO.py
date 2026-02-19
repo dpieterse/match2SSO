@@ -139,10 +139,13 @@ maximalNumberOfAsteroids = 1000
 # Telescope parameters
 """
 Run "import pytz; print(pytz.all_timezones)" within Python for possible time
-zones. For a square FOV, the FOV_width corresponds to the width and height of
-the FOV. For a circular FOV, the FOV_width is the diameter of the circle.
+zones. If FOV_is_circle is True, we assume a circular field-of-view. Otherwise,
+a square FOV is assumed, where the sides are aligned with RA & Dec. For a
+circular FOV, the FOV_width is the diameter of the circle. For a square FOV,
+the FOV_width corresponds to the width and height of the FOV.
 """
 timeZoneTelescope = {"ML": "Africa/Johannesburg", "BG": "America/Santiago"}
+FOV_is_circle = False
 FOV_width = 1.6544 # Size of the FOV in degrees
 mpc_code = {"ML": "L66", "BG": "X17"} # only used in day mode
 
