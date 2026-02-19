@@ -13,9 +13,9 @@ _match2SSO_ makes grateful use of the [_lunar_](https://github.com/Bill-Gray/lun
 - Add the lunar folder to PATH in your bash file
 - Clone Bill Gray's _jpl_eph_ repository to the software folder (https://github.com/Bill-Gray/jpl_eph) and build the library & executables as described in this repository's README file.
 - Clone the match2SSO repository (preferably to the software folder).
-- Adjust the settings in set_match2SSO.py to include and use the paths and parameters corresponding to your telescope and system.
 - Download JPL's DE ephemeris file to the software folder. (ftp://ssd.jpl.nasa.gov/pub/eph/planets/Linux/)
 - Download MPC's Observatory codes list to the software folder. (https://www.minorplanetcenter.net/iau/lists/ObsCodes.html)
+- Adjust the settings in set_match2SSO.py to use the paths and parameters corresponding to your telescope, user and system.
 
 ## Input & output files
 #### Input
