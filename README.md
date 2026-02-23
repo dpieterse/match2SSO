@@ -59,7 +59,7 @@ Allowed combinations of the above-mentioned parameters are:
 - ```--logname``` Name of the log file
 - ```--redownload``` Boolean to indicate whether previously downloaded versions of the MPC asteroid database and JPL comet database may be used, or whether a new version is to be downloaded. Default is True. If redownload is False, by default the most recently downloaded known objects database will be used.
 - ```--quick``` Boolean which is only relevant when ```--redownload False```. Instead of using the most recently downloaded known objects database, with ```--quick True```, the database with the reference epoch closest to the observation epoch is used. This speeds up the integration step (step 4 in the day/hist mode, see below). But beware: the database version used may not be the latest (most up-to-date) one. Default is False.
-- ```--savepredictions``` Boolean to indicate whether prediction catalogues need to be made. (See *output* section above.) Default is True.
+- ```--savepredictions``` Boolean to indicate whether prediction catalogues need to be made. (See *output* section above.) Default is False.
 - ```--makereports``` Boolean to indicate whether MPC reports should be created for all SSO detections. (See *output* section above.) Default is True.
 - ```--overwrite``` Boolean to indicate whether files may be overwritten. Default is False.
 

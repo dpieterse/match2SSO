@@ -125,7 +125,7 @@ TIME_FUNCTIONS = bool(settingsFile.time_functions)
 
 def run_match2SSO(tel='ML1', mode='hist', cat2process=None, date2process=None,
                   list2process=None, logname=None, redownload=True,
-                  quick=False, savepredictions=True, makereports=True,
+                  quick=False, savepredictions=False, makereports=True,
                   overwrite=False):
     """
     Run match2SSO on the input catalogue(s)/date. match2SSO can be run in
