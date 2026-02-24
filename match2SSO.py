@@ -1531,7 +1531,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
         "_light", "").replace("_trans.fits", "_sso_predictions.txt"))
     output_file_content = open(output_file, "w")
     
-    is_FOV_circle = get_par(settingsFile.FOV_is_circle)
+    is_FOV_circle = get_par(settingsFile.FOV_is_circle, TEL)
     if is_FOV_circle:
         field_radius = 3600.*get_par(settingsFile.FOV_width, TEL)/2.
     else:
