@@ -516,7 +516,7 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
                  .format(catlist))
         
         # Open catalogue list
-        with open(catlist, "r") as catalogue_list:
+        with open(catlist, "r", encoding="utf-8") as catalogue_list:
             catalogues2process = [
                 name.strip() for name in catalogue_list if name[0] != "#"]
         
@@ -963,7 +963,8 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db,
         else:
             # Create an empty comet database if we won't match to comets
             LOG.info("Create an empty comet database to prevent comet matches")
-            open(symlink_comet_database, "w").write("".join([
+            with open(symlink_comet_database, "w", encoding="utf-8") as file:
+                file.write("".join([
                  "Num  Name                                     Epoch      q ",
                  "          e        i         w        Node          Tp     ",
                  "  Ref\n------------------------------------------- ------- ",
@@ -1184,7 +1185,8 @@ def download_databases(redownload_db, tmp_folder, select_closest_epoch,
                                                       database_version)
         try:
             req = requests.get(database_url, allow_redirects=True)
-            open(database_name, "wb").write(req.content)
+            with open(database_name, "wb", encoding="utf-8") as file:
+                file.write(req.content)
             LOG.info("{} database version: {}".format(sso_type,
                                                       database_version))
         except:
@@ -1256,7 +1258,8 @@ def select_asteroids_on_uncertainty(asteroid_database):
     LOG.info("Removing asteroids with too large uncertainties...\n")
     
     # Open asteroid database
-    asteroid_database_content = open(asteroid_database, "r").readlines()
+    with open(asteroid_database, "r", encoding="utf-8") as file:
+        asteroid_database_content = file.readlines()
     
     # Find the size of the header of the asteroid database, assuming that the
     # header ends with a line of dashes.
@@ -1272,7 +1275,8 @@ def select_asteroids_on_uncertainty(asteroid_database):
     # lines corresponding to asteroids that have small orbital uncertainties.
     number_asteroids_pre_selection = 0
     number_asteroids_post_selection = 0
-    with open(asteroid_database, "w") as asteroid_database_content_new:
+    with open(asteroid_database, "w",
+        encoding="utf-8") as asteroid_database_content_new:
         for line_index in range(len(asteroid_database_content)-1):
             
             #Copy header to file
@@ -1348,7 +1352,8 @@ def select_comets_on_uncertainty(comet_database):
                      for item in sublist]
     
     # Open comet database
-    comet_database_content = open(comet_database, "r").readlines()
+    with open(comet_database, "r", encoding="utf-8") as file:
+        comet_database_content = file.readlines()
     
     # Find the size of the header of the comet database, assuming that the
     # header ends with a line of dashes.
@@ -1365,7 +1370,8 @@ def select_comets_on_uncertainty(comet_database):
     # thus are in the [comets2select] list).
     number_comets_pre_selection = 0
     number_comets_post_selection = 0
-    with open(comet_database, "w") as comet_database_content_new:
+    with open(comet_database, "w",
+        encoding="utf-8") as comet_database_content_new:
         for line_index in range(len(comet_database_content)-1):
             
             #Copy header to file
@@ -1529,7 +1535,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
     # Create temporary output file for astcheck results
     output_file = "{}{}".format(rundir, os.path.basename(transient_cat).replace(
         "_light", "").replace("_trans.fits", "_sso_predictions.txt"))
-    output_file_content = open(output_file, "w")
+    output_file_content = open(output_file, "w", encoding="utf-8")
     
     is_FOV_circle = get_par(settingsFile.FOV_is_circle, TEL)
     if is_FOV_circle:
@@ -1663,7 +1669,7 @@ def run_astcheck(mpcformat_file, rundir, output_file, matching_radius):
         return
     
     # Create a file for storing the output of the astcheck run
-    output_file_content = open(output_file, "w")
+    output_file_content = open(output_file, "w", encoding="utf-8")
     
     # Run astcheck from folder containing .sof-file
     subprocess.call([
@@ -2028,7 +2034,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     
     # Create MPC report
     LOG.info("Writing report {}".format(reportname))
-    report_content = open(reportname, "w")
+    report_content = open(reportname, "w", encoding="utf-8")
     
     # Write header to the report
     report_content.write(create_report_header(reportname, mpc_code))
@@ -3192,7 +3198,7 @@ def create_chk_files(noon, noon_type, mpc_code, rundir):
     mpcformat_file_fake = "{}fakedetection_{}_MPCformat.txt".format(rundir,
                                                                     noon_type)
     LOG.info("Creating fake detection: {}".format(mpcformat_file_fake))
-    mpcformat_file_fake_content = open(mpcformat_file_fake, "w")
+    mpcformat_file_fake_content = open(mpcformat_file_fake, "w", encoding="utf-8")
     fake_detection = "".join([
         "     0000001  C{} {:0>2} {:08.5f} "
         .format(obstime.year, obstime.month, obstime.day),
@@ -3236,7 +3242,8 @@ def retrieve_version(package_name):
     """
     
     try:
-        versions_file = open(get_par(settingsFile.versionsFile, TEL))
+        versions_file = open(get_par(settingsFile.versionsFile, TEL), "r",
+                             encoding="utf-8")
         for line in versions_file:
             if package_name in line:
                 line = line.replace("\n","")
@@ -3635,7 +3642,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     decimal_day = date_obs.day + 1./24.*(
         date_obs.hour + 1./60.*(date_obs.minute + 1./60.*(
             date_obs.second + date_obs.microsecond/10.**6)))
-    mpc_char16to32 = "{} {:0>2} {:08.5f} ".format(date_obs.year, 
+    mpc_char16to32 = "{} {:0>2} {:08.5f} ".format(date_obs.year,
                                                   date_obs.month, decimal_day)
     # Load transient catalogue data
     with fits.open(transient_cat) as hdu:
@@ -3657,7 +3664,7 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     dummy = False
     
     # Create output file
-    mpcformat_file_content = open(mpcformat_file, "w")
+    mpcformat_file_content = open(mpcformat_file, "w", encoding="utf-8")
     
     # Loop over the detections and add data to the MPC-formatted file
     for detection_index in range(len(detections)):
