@@ -1549,11 +1549,12 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
     output_file_content.close()
     
     # Read in astcheck output
-    astcheck_file_content = open(output_file, "r").readlines()
+    with open(output_file, "r", encoding="utf-8") as file:
+        astcheck_file_content = file.readlines()
     
     # Create table to store solar system bodies and their properties
     output_columns = {
-        "ID_SSO":       ["12a", "", ""],
+        "ID_SSO":       ["S12", "", ""],
         "RA_SSO":       ["f4", "deg", "%.6f"],
         "DEC_SSO":      ["f4", "deg", "%.6f"],
         "V_RA_SSO":     ["f4", "arcsec/hour", "%.4f"],
@@ -1859,7 +1860,8 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         return
     
     # Remove astcheck header and footer if needed
-    astcheck_file_content = open(astcheck_file, "r").readlines()
+    with open(astcheck_file, "r", encoding="utf-8") as file:
+        astcheck_file_content = file.readlines()
     
     # Find empty lines
     separator = "\n"
@@ -1873,7 +1875,7 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
     number_column = get_par(settingsFile.colNumber, TEL)
     output_columns = {
         number_column:  ["i4", ""],
-        "ID_SSO":       ["12a", ""],
+        "ID_SSO":       ["S12", ""],
         "DIST_RA_SSO":  ["i2", "arcsec"],
         "DIST_DEC_SSO": ["i2", "arcsec"],
         "DIST_SSO":     ["i2", "arcsec"],
