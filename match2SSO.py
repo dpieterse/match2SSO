@@ -1185,7 +1185,7 @@ def download_databases(redownload_db, tmp_folder, select_closest_epoch,
                                                       database_version)
         try:
             req = requests.get(database_url, allow_redirects=True)
-            with open(database_name, "wb", encoding="utf-8") as file:
+            with open(database_name, "wb") as file:
                 file.write(req.content)
             LOG.info("{} database version: {}".format(sso_type,
                                                       database_version))
