@@ -1180,7 +1180,7 @@ def download_databases(redownload_db, tmp_folder, select_closest_epoch,
 
         # Download database and get database version
         LOG.info("Downloading {} database...".format(sso_type))
-        database_version = datetime.utcnow().strftime("%Y%m%dT%H%M")
+        database_version = Time.now().strftime("%Y%m%dT%H%M")
         database_name = "{}{}DB_version{}.dat".format(tmp_folder, sso_type,
                                                       database_version)
         try:
