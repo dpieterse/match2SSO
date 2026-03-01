@@ -1425,7 +1425,7 @@ def select_comets_on_runoff(comet_database, epoch_ref):
     for line in comet_database_content:
         if line.startswith("-----"):
             header_end_index = line_index
-            break
+            continue
         line_index += 1
     
     # Re-write the comet database file, including only the header and the
@@ -1454,11 +1454,15 @@ def select_comets_on_runoff(comet_database, epoch_ref):
             
             # If the observation epoch is within the arc, include the object
             # if its RMS orbital error is smaller than the matching radius
-            if row_sbdb.first_obs == "None" or row_sbdb.last_obs == "None":
+            if (row_sbdb.first_obs == "None" or row_sbdb.last_obs == "None" or
+                str(row_sbdb.first_obs) == "nan" or
+                str(row_sbdb.last_obs) == "nan"):
                 continue
-            t_arcstart = np.datetime64(row_sbdb.first_obs.replace("??", "01"))
-            t_arcend = np.datetime64(row_sbdb.last_obs.replace("??-??",
-                                                               "12-31"))
+
+            t_arcstart = np.datetime64(str(row_sbdb.first_obs).replace("??",
+                                                                       "01"))
+            t_arcend = np.datetime64(str(row_sbdb.last_obs).replace("??-??",
+                                                                    "12-31"))
             t_epoch = np.datetime64(epoch_ref)
             if t_arcstart <= t_epoch <= t_arcend:
                 if row_sbdb.rms == "None":
@@ -1466,10 +1470,11 @@ def select_comets_on_runoff(comet_database, epoch_ref):
                 if float(row_sbdb.rms) <= matching_radius:
                     comet_database_content_new.write(line)
                     number_comets_post_selection += 1
+                continue
             
             # If the epoch is outside the arc, use the time difference and the
             # uncertainty parameter to calculate the runoff in arcsec
-            uncertainty = row_sbdb.condition_code
+            uncertainty = str(row_sbdb.condition_code)
             if not uncertainty.isdigit():
                 continue
             runoff_per_decade = float(get_par(
