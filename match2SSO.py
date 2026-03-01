@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.7.3"
+__version__ = "1.8.0"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -1213,9 +1213,9 @@ def download_databases(redownload_db, tmp_folder, select_closest_epoch,
         
         # Remove objects with large orbital uncertainties from database
         if sso_type == "asteroid":
-            select_asteroids_on_uncertainty(database_name)
+            select_asteroids_on_runoff(database_name, epoch_ref)
         elif sso_type == "comet":
-            select_comets_on_uncertainty(database_name)
+            select_comets_on_runoff(database_name, epoch_ref)
         
         database_names.append(database_name)
     
@@ -1228,14 +1228,26 @@ def download_databases(redownload_db, tmp_folder, select_closest_epoch,
 # In[ ]:
 
 
-def select_asteroids_on_uncertainty(asteroid_database):
+def select_asteroids_on_runoff(asteroid_database, epoch_ref):
     
     """
     Go through the asteroid database (MPCORB format) and select the asteroids
-    which have orbital uncertainty parameters less than or equal to
-    maxUncertainty (see set_match2SSO.py). The MPC uncertainty parameters that
-    we consider are explained here:
-    https://www.minorplanetcenter.net/iau/info/UValue.html
+    which have a maximal runoff Rmax (in arcseconds) less than the
+    matchingRadius (see set_match2SSO.py). To calculate Rmax, we first get the
+    max runoff per decade using the object's uncertainty parameter (see
+    https://www.minorplanetcenter.net/iau/info/UValue.html). Then we use
+    Rmax = (runoff per decade) * |delta_T|/10, where delta_T is the difference
+    between the time that the object was last observed and the epoch, in years.
+    This works reasonably well for future observations of objects, as well as
+    for newly found objects that we try to detect in historic data. E.g. for
+    objects that are observed before or after the arc over which there already
+    were observations for the object. If the epoch is within the observation
+    arc of the object, its positional error is the RMS residual of the orbital
+    fit. Then, objects are selected if rms < matchingRadius.
+    
+    Caveat: the runoff and rms are in-orbit errors, not on-sky errors. But for
+    the sake of ease and rapid processing, we use these as general estimates to
+    select or not select objects to match to.
     
     Overwrite the database with just the asteroids selected on their orbital
     uncertainties, so that there will be no matching with poorly known objects.
@@ -1244,18 +1256,20 @@ def select_asteroids_on_uncertainty(asteroid_database):
     -----------
     asteroid_database: string
         Name of the full asteroid database (MPCORB-formatted text-file).
+    epoch_ref: time string in yyyymmddThhmm format
+        Observation epoch used to estimate the runoff
     """
-    #mem_use(label="at start of select_asteroids_on_uncertainty")
-    
-    u_max = get_par(settingsFile.maxUncertainty, TEL)
-    if u_max is None:
-        LOG.info("All known solar system bodies are used in the matching, "
-                 "irrespective of their uncertainty parameter.")
-        return
+    #mem_use(label="at start of select_asteroids_on_runoff")
     
     if TIME_FUNCTIONS:
         t_selectast = time.time()
     LOG.info("Removing asteroids with too large uncertainties...\n")
+    
+    # Truncate epoch to format it as yyyymmdd
+    epoch_ref = epoch_ref[:8]
+    
+    # Load the matching radius
+    matching_radius = float(get_par(settingsFile.matchingRadius, TEL))
     
     # Open asteroid database
     with open(asteroid_database, "r", encoding="utf-8") as file:
@@ -1279,35 +1293,66 @@ def select_asteroids_on_uncertainty(asteroid_database):
         encoding="utf-8") as asteroid_database_content_new:
         for line_index in range(len(asteroid_database_content)-1):
             
-            #Copy header to file
-            if line_index <= header_end_index:
-                asteroid_database_content_new.write(
-                    asteroid_database_content[line_index])
-                continue
-            
             line = asteroid_database_content[line_index]
             
-            #Copy empty lines
-            if line == "\n":
+            # Copy header and empty lines to file
+            if line_index <= header_end_index or line == "\n":
                 asteroid_database_content_new.write(line)
                 continue
             
             number_asteroids_pre_selection += 1
+            arcstart = line[127:131]
+            lastobs = line[194:202]  # in yyyymmdd-format
             
-            # Filter on uncertainty parameter. Copy lines of asteroids for
-            # which orbits are determined reasonably well.
-            uncertainty = line[105]
-            if uncertainty.isdigit():
-                if float(uncertainty) <= u_max:
+            # The arcstart variable either contains a number of days or a year
+            # formatted as yyyy. Convert both to a date in the yyyymmdd-format
+            arcend = line[132:136]
+            if arcend == "days":
+                arcstart = int(arcstart)
+                t_lastobs = datetime.strptime(lastobs, "%Y%m%d")
+                t_arcstart = t_lastobs - timedelta(days=arcstart)
+                arcstart = t_arcstart.strftime("%Y%m%d")
+            else:
+                arcstart += "0101"
+            
+            # If the observation epoch is within the arc, include the object
+            # if its RMS orbital error is smaller than the matching radius
+            if arcstart <= epoch_ref and epoch_ref <= lastobs:
+                rms = line[137:141].strip()
+                if rms == "":
+                    continue
+                if float(rms) <= matching_radius:
                     asteroid_database_content_new.write(line)
                     number_asteroids_post_selection += 1
+                continue
+            
+            # If the epoch is outside the arc, use the time difference and the
+            # uncertainty parameter to calculate the runoff in arcsec
+            uncertainty = line[105]
+            if not uncertainty.isdigit():
+                continue
+            runoff_per_decade = float(get_par(
+                settingsFile.U2maxRunoff, int(uncertainty)))
+            t_epoch = datetime.strptime(epoch_ref, "%Y%m%d")
+            if epoch_ref > lastobs:
+                t_lastobs = datetime.strptime(lastobs, "%Y%m%d")
+                dt_y = (t_epoch - t_lastobs).days/365.25
+                runoff = runoff_per_decade/10. * dt_y
+            elif epoch_ref < arcstart:
+                t_arcstart = datetime.strptime(arcstart, "%Y%m%d")
+                dt_y = (t_arcstart - t_epoch).days/365.25
+                runoff = runoff_per_decade/10. * dt_y
+            
+            if runoff <= matching_radius:
+                asteroid_database_content_new.write(line)
+                number_asteroids_post_selection += 1
     
-    LOG.info("{} out of {} asteroids have U <= {}".format(
-        number_asteroids_post_selection, number_asteroids_pre_selection, u_max))
-    LOG.info("Asteroid database now only includes sources with U <= {}"
-             .format(u_max))
+    LOG.info("{} out of {} asteroids have a runoff <= {} arcsec".format(
+        number_asteroids_post_selection, number_asteroids_pre_selection,
+        matching_radius))
+    LOG.info("Asteroid database now only includes these sources")
     if TIME_FUNCTIONS:
-        log_timing_memory(t_selectast, label="select_asteroids_on_uncertainty")
+        log_timing_memory(t_selectast, label="select_asteroids_on_runoff")
     
     return
 
@@ -1315,41 +1360,59 @@ def select_asteroids_on_uncertainty(asteroid_database):
 # In[ ]:
 
 
-def select_comets_on_uncertainty(comet_database):
+def select_comets_on_runoff(comet_database, epoch_ref):
     
     """
-    First query the JPL database to retrieve the names of the comets that have
-    an MPC uncertainty parameter less than or equal to maxUncertainty (see
-    set_match2SSO.py). The MPC uncertainty parameters that we consider are
-    explained here: https://www.minorplanetcenter.net/iau/info/UValue.html
-    Then crossmatch the comet database (which we downloaded before) with this
-    list of names. Overwrite the database with just the comets selected on their
-    orbital uncertainties, so that there will be no matching with poorly known
-    objects.
+    First query the JPL database to retrieve the orbital information of the
+    comets that we need (observation arc, RMS, uncertainty parameter).
+     
+    Go through the comet database (ELEMENTS.COMET format) and select the
+    comets which have a maximal runoff Rmax (in arcseconds) less than the
+    matchingRadius (see set_match2SSO.py). To calculate Rmax, we first get the
+    max runoff per decade using the object's uncertainty parameter (see
+    https://www.minorplanetcenter.net/iau/info/UValue.html). Then we use
+    Rmax = (runoff per decade) * |delta_T|/10, where delta_T is the difference
+    between the time that the object was last observed and the epoch, in years.
+    This works reasonably well for future observations of objects, as well as
+    for newly found objects that we try to detect in historic data. E.g. for
+    objects that are observed before or after the arc over which there already
+    were observations for the object. If the epoch is within the observation
+    arc of the object, its positional error is the RMS residual of the orbital
+    fit. Then, objects are selected if rms < matchingRadius.
+    
+    Caveat: the runoff and rms are in-orbit errors, not on-sky errors. But for
+    the sake of ease and rapid processing, we use these as general estimates to
+    select or not select objects to match to.
+    
+    Overwrite the database with just the comets selected on their orbital
+    uncertainties, so that there will be no matching with poorly known objects.
     
     Parameters:
     -----------
     comet_database: string
         Name of the previously downloaded full comet database.
+    epoch_ref: time string in yyyymmddThhmm format
+        Observation epoch used to estimate the runoff
     """
-    #mem_use(label="at start of select_comets_on_uncertainty")
-    
-    u_max = get_par(settingsFile.maxUncertainty, TEL)
-    if u_max is None:
-        LOG.info("All known solar system bodies are used in the matching, "
-                 "irrespective of their uncertainty parameter.")
-        return
+    #mem_use(label="at start of select_comets_on_runoff")
     
     if TIME_FUNCTIONS:
         t_selectcom = time.time()
     LOG.info("Removing comets with too large uncertainties...\n")
     
-    # Query the JPL database to select comets with well-determined orbits
-    url = ('https://ssd-api.jpl.nasa.gov/sbdb_query.api?fields=full_name&'
-           'sb-kind=c&sb-cdata={"AND":["condition_code|LT|%s"]}' %str(u_max+1))
+    # Format the epoch as yyyy-mm-dd
+    epoch_ref = "{}-{}-{}".format(epoch_ref[:4], epoch_ref[4:6],
+                                  epoch_ref[6:8])
+    
+    # Load the matching radius
+    matching_radius = float(get_par(settingsFile.matchingRadius, TEL))
+    
+    # Query the JPL database to get orbital information for the comets
+    url = ('https://ssd-api.jpl.nasa.gov/sbdb_query.api?sb-kind=c&'
+           'fields=full_name,first_obs,last_obs,rms,condition_code')
     req = requests.get(url, allow_redirects=True)
-    comets2select = [item.strip() for sublist in json.loads(req.content)['data']
-                     for item in sublist]
+    df_sbdb = pd.DataFrame(req.json()['data'], columns=req.json()['fields'])
+    df_sbdb = df_sbdb.astype(str).apply(lambda x: x.str.strip())
     
     # Open comet database
     with open(comet_database, "r", encoding="utf-8") as file:
@@ -1374,28 +1437,60 @@ def select_comets_on_uncertainty(comet_database):
         encoding="utf-8") as comet_database_content_new:
         for line_index in range(len(comet_database_content)-1):
             
-            #Copy header to file
-            if line_index <= header_end_index:
-                comet_database_content_new.write(
-                    comet_database_content[line_index])
+            line = comet_database_content[line_index]
+            
+            # Copy header and empty lines to file
+            if line_index <= header_end_index or line == "\n":
+                comet_database_content_new.write(line)
                 continue
             
-            line = comet_database_content[line_index]
             number_comets_pre_selection += 1
             
-            # Filter on uncertainty parameter. Copy lines of comets for
-            # which orbits are determined reasonably well.
             cometname = line[0:44].strip()
-            if cometname in comets2select:
+            if cometname not in df_sbdb.full_name.values:
+                LOG.error("Comet {} is unknown and skipped".format(cometname))
+                continue
+            row_sbdb = df_sbdb[df_sbdb.full_name == cometname].iloc[0]
+            
+            # If the observation epoch is within the arc, include the object
+            # if its RMS orbital error is smaller than the matching radius
+            if row_sbdb.first_obs == "None" or row_sbdb.last_obs == "None":
+                continue
+            t_arcstart = np.datetime64(row_sbdb.first_obs.replace("??", "01"))
+            t_arcend = np.datetime64(row_sbdb.last_obs.replace("??-??",
+                                                               "12-31"))
+            t_epoch = np.datetime64(epoch_ref)
+            if t_arcstart <= t_epoch <= t_arcend:
+                if row_sbdb.rms == "None":
+                    continue
+                if float(row_sbdb.rms) <= matching_radius:
+                    comet_database_content_new.write(line)
+                    number_comets_post_selection += 1
+            
+            # If the epoch is outside the arc, use the time difference and the
+            # uncertainty parameter to calculate the runoff in arcsec
+            uncertainty = row_sbdb.condition_code
+            if not uncertainty.isdigit():
+                continue
+            runoff_per_decade = float(get_par(
+                settingsFile.U2maxRunoff, int(uncertainty)))
+            if t_epoch > t_arcend:
+                dt_y = (t_epoch - t_arcend).astype(int)/365.25
+                runoff = runoff_per_decade/10. * dt_y
+            elif t_epoch < t_arcstart:
+                dt_y = (t_arcstart - t_epoch).astype(int)/365.25
+                runoff = runoff_per_decade/10. * dt_y
+            
+            if runoff <= matching_radius:
                 comet_database_content_new.write(line)
                 number_comets_post_selection += 1
     
-    LOG.info("{} out of {} comets have U <= {}".format(
-        number_comets_post_selection, number_comets_pre_selection, u_max))
-    LOG.info("Comet database now only includes sources with U <= {}"
-             .format(u_max))
+    LOG.info("{} out of {} comets have a runoff <= {} arcsec".format(
+        number_comets_post_selection, number_comets_pre_selection,
+        matching_radius))
+    LOG.info("Comet database now only includes these sources")
     if TIME_FUNCTIONS:
-        log_timing_memory(t_selectcom, label="select_comets_on_uncertainty")
+        log_timing_memory(t_selectcom, label="select_comets_on_runoff")
     
     return
 
@@ -1792,12 +1887,14 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     header["COMDB-V"] = (cometDB_version,
                          "comet database version (date in UTC)")
     
-    # Add matching radius and maximum orbital uncertainty parameter to header
+    # Add matching radius and maximum orbital uncertainty parameter to header.
+    # The latter is less relevant since match2SSO v1.8.0, when we started
+    # filtering on runoff rather than uncertainty parameter. But we do require
+    # a numerical uncertainty parameter, which translates to U-MAX = 9.
     if incl_detections:
         header["RADIUS"] = (float(get_par(settingsFile.matchingRadius, TEL)),
                             "matching radius in arcsec")
-    header["U-MAX"] = (get_par(settingsFile.maxUncertainty, TEL),
-                       "maximum orbital uncertainty parameter")
+    header["U-MAX"] = (9, "maximum orbital uncertainty parameter")
     
     # Add number of (predicted) detections to header
     header["N-SSO"] = (N_sso, "predicted number of bright SSOs in FOV")
@@ -2872,12 +2969,6 @@ def check_settings():
                       int):
         print("CRITICAL: incorrectly specified max. number of asteroids in "
               "settings file.")
-        return False
-    
-    maxUnc = get_par(settingsFile.maxUncertainty, TEL)
-    if (not isinstance(maxUnc, int) and maxUnc is not None):
-        print("CRITICAL: incorrectly specified max. uncertainty in settings "
-              "file. Must be 0-9 or None.")
         return False
     
     # Check if JPL ephemeris file exists

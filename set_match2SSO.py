@@ -1,4 +1,6 @@
 import os
+import numpy as np
+
 
 proc_env = ""
 #==============================================================================
@@ -21,6 +23,21 @@ URL_cometDatabase = "https://ssd.jpl.nasa.gov/dat/ELEMENTS.COMET"
 # CPP library to convert from __cplusplus macro to the language version string
 CPPmacro2version = {"202302L":"C++23", "202002L":"C++20", "201703L":"C++17",
                     "201402L":"C++14", "201103L":"C++11", "199711L":"C++98"}
+
+
+# Dictionary to convert MPC uncertainty parameter to runoff in arcsec/decade
+"""
+By default, match2SSO only keeps solar system objects which have well-
+determined orbits to prevent spurious matches. This is done by selecting
+objects on their maximal orbital runoff (in arcsec), using the dictionary
+below (see www.minorplanetcenter.net/iau/info/UValue.html). The U2maxRunoff
+dictionary gives the RUNOFF in arcsec/decade. The runoff in arcsec is then
+calculated as RUNOFF/10 * delta_t, where delta_t is the time since the last
+observation of the object, in years. If you want to turn off this filtering,
+set the dictionary values for each entry to zero.
+"""
+U2maxRunoff = {0:1.0, 1:4.4, 2:19.6, 3:86.5, 4:382, 5:1692, 6:7488, 7:33121,
+               8:146502, 9:np.inf}
 
 
 # Switches
@@ -153,16 +170,6 @@ timeZoneTelescope = {"ML": "Africa/Johannesburg", "BG": "America/Santiago"}
 FOV_is_circle = False
 FOV_width = 1.6544 # Size of the FOV in degrees
 mpc_code = {"ML": "L66", "BG": "X17"} # only used in day mode
-
-
-# Maximal orbital uncertainty parameter
-"""
-Maximum U allowed for the asteroids that are used for the matching (see
-https://www.minorplanetcenter.net/iau/info/UValue.html). Allowed values for
-U are 0 to 9 or None. If None, all objects will be taken into account, including
-those with letter uncertainties.
-"""
-maxUncertainty = 2
 
 
 # Header for the MPC report (listed per MPC observatory code). The report is
