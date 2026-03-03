@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.8.0"
+__version__ = "1.8.1"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -759,8 +759,7 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
             # Check for any version of an MPC report for this observation
             reportnames = list_files(reportname.replace(".txt", ""), end_str=".txt")
             if reportnames:
-                LOG.info("There is at least one version of an MPC report for this "
-                         "observation. No new one will be made.\n")
+                LOG.info("The MPC report exists and won't be remade.")
                 return made_kod
             
             # Check if MPC-formatted file that the create_MPC_report function needs
@@ -2084,9 +2083,6 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     packed permanent designations if available. Otherwise, the packed
     provisional designations are used.
     
-    The MPC report will be compiled in a temporary folder and the complete file
-    will be moved to the reports folder at the end of the function.
-    
     Parameters:
     -----------
     sso_cat: string
@@ -2112,17 +2108,10 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     
     # Compose temporary report name using run directory as path
     destination = os.path.dirname(reportname)
-    report_basename = os.path.basename(reportname).replace(
-        ".txt", "_{}.txt".format(Time.now().strftime("%Y%m%dT%H%M%S")))
+    reportversion = Time.now().strftime("%Y%m%dT%H%M%S")
+    report_basename = os.path.basename(reportname)
     reportname = rundir + report_basename
     destination_file = "/".join([destination, report_basename])
-    
-    # Check if file already exists (will only happen when running this function
-    # multiple times in close succession, as the production time is used in the
-    # file name)
-    if not OVERWRITE_FILES and isfile(destination_file):
-        LOG.info("MPC report already exists and will not be re-made.")
-        return
     
     # Open SSO catalogue
     with fits.open(sso_cat) as hdu:
@@ -2139,7 +2128,8 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     report_content = open(reportname, "w", encoding="utf-8")
     
     # Write header to the report
-    report_content.write(create_report_header(reportname, mpc_code))
+    report_content.write(create_report_header(report_basename, reportversion,
+                                              mpc_code))
     
     # Open MPC-formatted file as the MPC report will be very similar, only with
     # MPC designations rather than transient numbers as the first column. For a
@@ -2223,7 +2213,7 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
 # In[ ]:
 
 
-def create_report_header(reportname, mpc_code, comment=None):
+def create_report_header(reportname, reportversion, mpc_code, comment=None):
     
     """
     Function composes the header of the MPC report corresponding to a single
@@ -2233,6 +2223,8 @@ def create_report_header(reportname, mpc_code, comment=None):
     -----------
     reportname: string
         Name of the MPC report for which the header is composed.
+    reportversion: string
+        Date and time when the report was made, formatted as yyyymmddThhmmss
     mpc_code: string
         MPC code of the telescope with which the observation was made.
     comment: string
@@ -2253,7 +2245,8 @@ def create_report_header(reportname, mpc_code, comment=None):
     # neocp = "NEOCP"           #submitting observations of NEOCP objects
     
     # Add ACK line to the header of the MPC report.
-    ack_line = "ACK {}\n".format(Path(reportname).stem)
+    ack_line = "ACK {} made at {}\n".format(Path(reportname).stem,
+                                            reportversion)
     if len(ack_line) > 82:
         line = "ACK line in report {} is too long!".format(reportname)
         LOG.error(line)
