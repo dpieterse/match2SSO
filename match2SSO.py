@@ -1718,11 +1718,11 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
         LOG.info("Created fits catalogue with predictions")
         fitstable = format_cat(output_table, start_header=sso_header)
         save_fits(fitstable, predict_cat, rundir=rundir)
+        LOG.info("Predictions saved to {}.".format(predict_cat))
     else:
         LOG.info("Predicted #SSOs (N-SSO) is returned, but because "
                  "savepredictions=False, no predictions catalogue is made.")
     
-    LOG.info("Predictions saved to {}.".format(predict_cat))
     if TIME_FUNCTIONS:
         log_timing_memory(t_pred, label="predictions")
     
@@ -2197,7 +2197,6 @@ def create_MPC_report(sso_cat, mpcformat_file, reportname, rundir, mpc_code):
     LOG.info("Saved {} detections to MPC report".format(Nlines))
     
     # Move report from run directory to final destination
-    LOG.info("Moving report to {}".format(destination))
     if isfile(destination_file):
         LOG.info("MPC report {} is overwritten.".format(destination_file))
     else:
