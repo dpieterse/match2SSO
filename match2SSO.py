@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.8.1"
+__version__ = "1.8.2"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -1629,7 +1629,10 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
     else:
         ra_field = hdr["RA"]
         dec_field = hdr["DEC"]
-    limmag = hdr[limmag_keyword]
+    if limmag_keyword == None or limmag_keyword == "None":
+        limmag = np.inf
+    else:
+        limmag = hdr[limmag_keyword]
     
     # Create temporary output file for astcheck results
     output_file = "{}{}".format(rundir, os.path.basename(transient_cat).replace(
@@ -2393,13 +2396,16 @@ def get_transient_filenames(input_folder, minimal_date, maximal_date,
             else:
                 LOG.info("Excluding red-flagged (dummy) catalogues.")
                 
-                if dummy_keyword not in header.keys():
+                if dummy_keyword == None or dummy_keyword == "None":
+                    files2process.append(transient_cat)
+                
+                elif dummy_keyword not in header.keys():
                     line = "{} not in the header!".format(dummy_keyword)
                     LOG.critical(line)
                     send_email(line, 'critical')
                     return []
                 
-                if not header[dummy_keyword]:
+                elif not header[dummy_keyword]:
                     files2process.append(transient_cat)
     
     LOG.info("{} transient catalogues have been selected."
@@ -3189,7 +3195,7 @@ def check_input_catalogue(cat_name):
     """
     Check if the input catalogue exists and if it is a dummy (red-flagged)
     catalogue or not. If a light version of the catalogue is available, use
-    that version. This function returns a boolean for "does the catalogue 
+    that version. This function returns a boolean for "does the catalogue
     exist?", a boolean for "is the catalogue a dummy?" and the catalogue name
     is returned, as the light version might have been selected instead of the
     transient catalogue that includes the thumbnails.
@@ -3214,6 +3220,9 @@ def check_input_catalogue(cat_name):
         header = hdu[1].header
     
     dummy_keyword = get_par(settingsFile.keyDummy, TEL)
+    if dummy_keyword == None or dummy_keyword == "None":
+        return True, False, cat_name
+
     if dummy_keyword not in header.keys():
         line = "{} not in the header of {}!".format(dummy_keyword, cat_name)
         LOG.critical(line)
@@ -3706,10 +3715,9 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     # Load transient catalogue header
     with fits.open(transient_cat) as hdu:
         transient_header = hdu[1].header
-    mpc_code_keyword = get_par(settingsFile.keyMPCcode, TEL)
     
     # Get the MPC observatory code from the header
-    mpc_code = transient_header[mpc_code_keyword].strip()
+    mpc_code = get_par(settingsFile.mpc_code, TEL)
     if mpc_code not in list(pd.read_fwf(get_par(
         settingsFile.obsCodesFile, TEL), widths=[4, 2000], skiprows=1)["Code"
                                                                       ])[:-1]:
@@ -3741,8 +3749,9 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
     snr_column = get_par(settingsFile.colSNR, TEL)
     
     # Remove negative transients
-    index_positives = np.where(detections[snr_column]>=0)[0]
-    detections = detections[index_positives]
+    if snr_column != None and snr_column != "None":
+        index_positives = np.where(detections[snr_column]>=0)[0]
+        detections = detections[index_positives]
     
     # Check if there are positive transients to include
     if len(detections) == 0:

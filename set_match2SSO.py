@@ -108,9 +108,9 @@ for tel in ["ML", "BG"]:
 
 # If you do not care about specifying software versions in the headers of the
 # match2SSO output catalogues, just use an empty string for versionsFile below.
-# If you do want to include the latest lunar and jpl_eph versions in the
-# headers, make a text file listing lunar and jpl_eph on different lines, where
-# after the software name and an extra space, the version number is listed.
+# If you do want to include the lunar and jpl_eph versions in the headers, make
+# a text file listing lunar and jpl_eph on different lines, where after the
+# software name and an extra space, the version number is listed.
 # E.g. "lunar a693", where a693 is the name of the last lunar commit.
 versionsFile = "/Software/versions.txt"
 
@@ -131,23 +131,29 @@ for tel in ["ML", "BG"]:
 colNumber = "NUMBER" # Source number, unique within the catalogue
 colRA = "RA_PSF_D"   # [deg]
 colDec = "DEC_PSF_D" # [deg]
-colMag = "MAG_ZOGY"
+colMag = "MAG_ZOGY"  # Used in MPC reports, NOT used in the matching
 colFlux = "FNU_ZOGY" # [micro Jy], only needed if magnitude column doesn't exist
-colSNR = "SNR_ZOGY"  # Negative values are negative transients (to reject)
+colSNR = "SNR_ZOGY"  # Used to reject negative-S/N sources. Set to None to not use
 
 
 # Relevant header keywords from detection catalogue
-keyDummy = "TDUMCAT"      # boolean (if True, the catalogue is empty)
 keyDate = "DATE-OBS"      # isot format
-keyMPCcode = "MPC-CODE"   # MPC observatory code
-keyRACentre = "RA-CNTR"   # RA of the field center, [deg]
-keyDecCentre = "DEC-CNTR" # Dec of the field center, [deg]
-keyLimmag = "T-LMAG"      # transient limiting magnitude
+keyRACentre = "RA-CNTR"   # RA of the pointing center, [deg]
+keyDecCentre = "DEC-CNTR" # Dec of the pointing center, [deg]
+
+
+# Optional header keywords from detection catalogue (set to None to not use).
+# keyDummy can speed up the processing of empty catalogues. keyLimmag is used
+# to determine header keyword N-SSO for the output: the number of reasonably
+# bright SSOs in the telescope's FOV (where V-magnitude <= lim. mag). Set to
+# None to include all objects in the FOV.
+keyDummy = "TDUMCAT" # boolean indicating if catalogue is empty
+keyLimmag = "T-LMAG" # transient limiting magnitude
 
 
 # Astcheck parameters
-matchingRadius = 20 #matching radius in arcsec
-limitingMagnitude = 25 #limiting V-magnitude
+matchingRadius = 20    # matching radius in arcsec
+limitingMagnitude = 25 # limiting V-magnitude
 
 
 # Maximal number of asteroids that are returned as a match by astcheck. Set it
