@@ -77,7 +77,7 @@ The steps match2SSO performs in the different modes are:
     1. Creates a run directory in preparation of the nightly processing.
     2. Downloads asteroid and comet databases to the tmp folder.
     3. Combines the comet and asteroid databases into a SOF-formatted known objects database.
-    4. Integrates the known objects database to midnight of the observation night
+    4. Integrates the known objects database to UTC midnight of the observation night
     5. Creates symbolic links in the run directory to the used databases and the observatory codes list.
     6. Runs astcheck on a fake detection in order to create the CHK files that astcheck will need for faster / parallel processing when running on observations. 
     7. Removes the fake detection in- & output (but not the CHK files!).
@@ -93,7 +93,7 @@ The steps match2SSO performs in the different modes are:
     1. Creates a run directory per observation night
     2. [_Optional_] Downloads asteroid and comet databases to the database folder. (If this step is skipped, the most recently downloaded version of the database will be used.)
     3. Combines the comet and integrated asteroid databases into a SOF-formatted known objects database.
-    4. Integrates the asteroid database to midnight of the observation night.
+    4. Integrates the asteroid database to UTC midnight of the observation night.
     5. Creates symbolic links in the run directory to the used databases and the observatory codes list.
     6. Run the matching per detection catalogue:<br/>
           a. Converts the detection catalogue into an MPC-formatted text file.

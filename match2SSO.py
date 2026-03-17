@@ -261,8 +261,8 @@ def day_mode(night_start, tmp_folder, redownload_db, quick_integration):
       1) Downloads asteroid and comet databases to tmp_folder.
       2) Combines the comet and asteroid databases into a SOF-formatted known
          objects database.
-      3) Integrates the known objects database to midnight of the observation
-         night.
+      3) Integrates the known objects database to midnight (UTC) of the
+         observation night.
       4) Creates symbolic links to the used databases and the observatory codes
          list in the run directory.
       5) Runs astcheck on a fake detection in order to create the CHK files
@@ -325,9 +325,9 @@ def day_mode(night_start, tmp_folder, redownload_db, quick_integration):
                    "{}ObsCodes.html".format(rundir))
     
     # Download and integrate known object databases
-    midnight = night_start + timedelta(days=0.5)
-    create_known_objects_database(midnight, rundir, tmp_folder, redownload_db,
-                                  quick_integration)
+    local_midnight = night_start + timedelta(days=0.5)
+    create_known_objects_database(local_midnight, rundir, tmp_folder,
+                                  redownload_db, quick_integration)
     
     # Create CHK files that astcheck needs in advance, to allow parallelisation
     # in the night mode
@@ -448,7 +448,8 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
       1) Downloads asteroid and comet databases to tmp_folder. [optional]
       2) Combines the comet and asteroid databases into a SOF-formatted known
          objects database.
-      3) Integrates the known objects database to midnight of the observation night.
+      3) Integrates the known objects database to midnight (UTC) of the
+         observation night.
       4) Creates symbolic links to the used databases and the observatory codes
          list in the run directory.
     The asteroid and comet databases used for this are only downloaded once per
@@ -459,9 +460,9 @@ def hist_mode(cat_name, date, catlist, night_start, input_folder, tmp_folder,
     For all transient catalogues, the code then:
       5) Converts the transient catalogue into an MPC-formatted text file.
       6) Runs astcheck on the central coordinates of the observation, to make
-         predictions on the known solar system objects in the FOV. The number of
-         bright SSOs in the FOV will later be written to the header of the SSO
-         catalogue.
+         predictions on the known solar system objects in the FOV. The number
+         of bright SSOs in the FOV will later be written to the header of the
+         SSO catalogue.
       7) Makes a prediction catalogue of the known solar system objects in the
          FOV during the observation. Only if savepredictions=True.
       8) Runs astcheck on the MPC-formatted text file, to find matches between
@@ -805,11 +806,11 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
         return made_kod
     
     # If make_kod, create a new known objects database with a reference epoch
-    # corresponding to midnight of the observation night. Also create a
+    # corresponding to midnight (UTC) of the observation night. Also create a
     # symbolic link to the MPC observatory codes list.
     if make_kod:
-        midnight = night_start + timedelta(days=0.5)
-        create_known_objects_database(midnight, rundir, tmp_folder,
+        local_midnight = night_start + timedelta(days=0.5)
+        create_known_objects_database(local_midnight, rundir, tmp_folder,
                                       redownload_db, quick_integration)
         made_kod = True
         
@@ -885,20 +886,20 @@ def match_single_catalogue(cat_name, rundir, tmp_folder, night_start, make_kod,
 # In[ ]:
 
 
-def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db,
-    quick_integration):
+def create_known_objects_database(local_midnight, rundir, tmp_folder,
+    redownload_db, quick_integration):
     
     """
     Wrapper function to create a known (solar system) objects database.
     
     Function downloads the most recent versions of the asteroid database and
     the comet database. It then uses integrat.cpp from the lunar repository to
-    integrate the orbits to midnight of the observation night, in order to
-    optimize the predicted positions of known objects.
+    integrate the orbits to midnight (UTC) of the observation night, in order
+    to optimize the predicted positions of known objects.
     
     Parameters:
     -----------
-    midnight: datetime object, including time zone
+    local_midnight: datetime object, including time zone
         Local midnight during the observation night.
     rundir: string
         Directory in which mpc2sof is run and which the known objects database
@@ -908,7 +909,7 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db,
         function.
     redownload_db: boolean
         If False, the databases will not be redownloaded. They will only be
-        integrated to the observation epoch (midnight on the observation
+        integrated to the observation epoch (UTC midnight on the observation
         night).
     quick_integration: boolean
         Integrating to an epoch years from the reference epoch can take very
@@ -924,8 +925,8 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db,
         t_db = time.time()
     
     # Convert local midnight to the closest UTC midnight
-    date_midnight = midnight.date()
-    if midnight.hour >= 12.:
+    date_midnight = local_midnight.date()
+    if local_midnight.hour >= 12.:
         date_midnight = date_midnight + timedelta(days=1)
     midnight_utc = pytz.utc.localize(datetime.strptime(" ".join([
         date_midnight.strftime("%Y%m%d"), "000000"]), "%Y%m%d %H%M%S"))
@@ -993,15 +994,6 @@ def create_known_objects_database(midnight, rundir, tmp_folder, redownload_db,
                 os.remove(symlink_comet_database)
     
     # Integrating known objects database
-    # - Integrat only accepts UTC midnights. Choose the one closest to local
-    #   midnight.
-    date_midnight = midnight.date()
-    if midnight.hour >= 12.:
-        date_midnight = date_midnight + timedelta(days=1)
-    midnight_utc = pytz.utc.localize(datetime.strptime(" ".join([
-        date_midnight.strftime("%Y%m%d"), "000000"]), "%Y%m%d %H%M%S"))
-    midnight_utc_str = midnight_utc.strftime("%Y%m%dT%H%M")
-    
     # - Define integrated database name
     ext = ".sof"
     if combined_database:
@@ -1515,7 +1507,7 @@ def integrate_database(original_database, integrated_database, midnight_utc,
     integrated_database: string
         Name of the integrated SSO database (output file of this function).
     midnight_utc: datetime object, including time zone
-        Local midnight during the observation night.
+        UTC midnight closest to local midnight during the observation night.
     tmp_folder: string
         Folder to save the integrated database to that is created in this
         function.
