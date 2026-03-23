@@ -1831,8 +1831,8 @@ def create_sso_header(rundir, N_det, N_sso, dummy, incl_detections):
     
     if cpp_macro not in settingsFile.CPPmacro2version.keys():
         line = "C++ macro unknown: {}".format(cpp_macro)
-        LOG.error(line)
-        send_email(line)
+        LOG.warning(line)
+        send_email(line, "warning")
         cpp_version = "None"
     else:
         cpp_version = settingsFile.CPPmacro2version[cpp_macro]
