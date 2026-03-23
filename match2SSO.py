@@ -2026,10 +2026,20 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
                 LOG.warning(line)
                 send_email(line, "warning")
                 magnitude = None
-        
+            try:
+                offset_ra = float(offset_ra)
+                offset_dec = float(offset_dec)
+                offset = float(offset)
+            except ValueError:
+                line = ("Error in formatting offset: {}"
+                        .format(match_properties))
+                LOG.error(line)
+                send_email(line)
+                continue
+            
             # Add match to output table
-            output_row = (transient_number, str(identifier), float(offset_ra),
-                          float(offset_dec), float(offset), magnitude, initial_flag)
+            output_row = (transient_number, str(identifier), offset_ra,
+                          offset_dec, offset, magnitude, initial_flag)
             output_table.add_row(output_row)
     
     # If a solar system object was matched to multiple transient sources in the
