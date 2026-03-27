@@ -191,7 +191,7 @@ MPCreportHeader = "".join([
 
 
 # Send notification to gcloud logging for errors instead of sending email
-notify_in_gcloud = {"ML": False, "BG": False}
+notify_in_gcloud = {"ML": False, "BG": True}
 
 # Email settings
 sender = "<danielle@blackgem.org>"
