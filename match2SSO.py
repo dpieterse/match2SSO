@@ -1685,7 +1685,7 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
             v_dec = float(v_dec)
         except ValueError:
             line = ("Error in formatting offset: {}"
-                    .format(match_properties))
+                    .format(source_properties))
             LOG.error(line)
             send_email(line)
             continue
@@ -2027,8 +2027,8 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         for i_match in range(len(matches)):
             match = matches[i_match]
             identifier = match[:12].strip()
-            v_dec = match[-5:] # Currently not saved
-            v_ra = match[-10:-5] # Currently not saved
+            #v_dec = match[-5:]
+            #v_ra = match[-10:-5]
             match = match[:-10]
             match_properties = re.split(" +", match)
             match_properties = [x for x in match_properties if len(x) > 0]
