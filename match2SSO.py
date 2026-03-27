@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.8.3"
+__version__ = "1.8.4"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -1657,8 +1657,8 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
         "ID_SSO":       ["S12", "", ""],
         "RA_SSO":       ["f4", "deg", "%.6f"],
         "DEC_SSO":      ["f4", "deg", "%.6f"],
-        "V_RA_SSO":     ["f4", "arcsec/hour", "%.4f"],
-        "V_DEC_SSO":    ["f4", "arcsec/hour", "%.4f"],
+        "V_RA_SSO":     ["f4", "arcsec/min", "%.4f"],
+        "V_DEC_SSO":    ["f4", "arcsec/min", "%.4f"],
         "MAG_V_SSO":    ["f4", "", "%.2f"]
         }
     output_table = Table()
