@@ -2027,8 +2027,8 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         for i_match in range(len(matches)):
             match = matches[i_match]
             identifier = match[:12].strip()
-            #v_dec = match[-5:]
-            #v_ra = match[-10:-5]
+            #v_dec = match[-5:].strip()
+            #v_ra = match[-10:-5].strip()
             match = match[:-10]
             match_properties = re.split(" +", match)
             match_properties = [x for x in match_properties if len(x) > 0]
