@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.8.2"
+__version__ = "1.8.3"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -1671,16 +1671,27 @@ def predictions(transient_cat, rundir, predict_cat, mpc_code, savepredictions):
     # Loop through SSOs and store their properties in the output table
     for source in astcheck_file_content:
         source = re.sub("\n", "", source) # Remove line end character
+        identifier = source[:12].strip()
         source_properties = re.split(" +", source)
-        identifier = " ".join(source_properties[:-5])
         ra_source, dec_source, magnitude, v_ra, v_dec = source_properties[-5:]
         try:
             magnitude = float(magnitude)
         except:
             magnitude = np.nan
-        
-        output_row = (identifier, float(ra_source), float(dec_source),
-                      float(v_ra), float(v_dec), magnitude)
+        try:
+            ra_source = float(ra_source)
+            dec_source = float(dec_source)
+            v_ra = float(v_ra)
+            v_dec = float(v_dec)
+        except ValueError:
+            line = ("Error in formatting offset: {}"
+                    .format(match_properties))
+            LOG.error(line)
+            send_email(line)
+            continue
+
+        output_row = (identifier, ra_source, dec_source, v_ra, v_dec,
+                      magnitude)
         output_table.add_row(output_row)
     
     # Remove temporary astcheck output file
@@ -2014,10 +2025,14 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
         
         # Get properties of matches
         for i_match in range(len(matches)):
-            match_properties = re.split(" +", matches[i_match])
+            match = matches[i_match]
+            identifier = match[:12].strip()
+            v_dec = match[-5:] # Currently not saved
+            v_ra = match[-10:-5] # Currently not saved
+            match = match[:-10]
+            match_properties = re.split(" +", match)
             match_properties = [x for x in match_properties if len(x) > 0]
-            identifier = " ".join(match_properties[:-6])
-            offset_ra, offset_dec, offset, magnitude = match_properties[-6:-2]
+            offset_ra, offset_dec, offset, magnitude = match_properties[-4:]
             try:
                 magnitude = float(magnitude)
             except ValueError:
@@ -2038,8 +2053,8 @@ def create_sso_catalogue(astcheck_file, rundir, sso_cat, N_sso):
                 continue
             
             # Add match to output table
-            output_row = (transient_number, str(identifier), offset_ra,
-                          offset_dec, offset, magnitude, initial_flag)
+            output_row = (transient_number, identifier, offset_ra, offset_dec,
+                          offset, magnitude, initial_flag)
             output_table.add_row(output_row)
     
     # If a solar system object was matched to multiple transient sources in the
