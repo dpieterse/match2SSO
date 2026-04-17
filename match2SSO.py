@@ -1769,9 +1769,13 @@ def run_astcheck(mpcformat_file, rundir, output_file, matching_radius):
     if TIME_FUNCTIONS:
         t_astcheck = time.time()
     
-    if not OVERWRITE_FILES and isfile(output_file):
-        LOG.info("Astcheck output file already exists and won't be re-made.")
-        return
+    # We used to keep the output file that was made in a previous run if it
+    # still existed and OVERWRITE_FILES=False, but this can lead to issues if a
+    # run fails whilst writing this file (if only part of the file was made).
+    # Thus we now always make the file again.
+    #if not OVERWRITE_FILES and isfile(output_file):
+    #    LOG.info("Astcheck output file already exists and won't be re-made.")
+    #    return
     
     # Create a file for storing the output of the astcheck run
     output_file_content = open(output_file, "w", encoding="utf-8")
@@ -3744,10 +3748,13 @@ def convert_fits2mpc(transient_cat, mpcformat_file):
         send_email(line, 'critical')
         return None, True
     
-    # Check if MPC-formatted file exists and if it should be overwritten or not
-    if not OVERWRITE_FILES and isfile(mpcformat_file):
-        LOG.info("MPC-formatted file already exists and will not re-made.")
-        return mpc_code, False
+    # We used to keep the MPC-formatted file that was made in a previous run if
+    # it still existed and OVERWRITE_FILES=False, but this can lead to issues
+    # if a run fails whilst writing this file (if only part of the file was
+    # made). Thus we now always make the file again.
+    #if not OVERWRITE_FILES and isfile(mpcformat_file):
+    #    LOG.info("MPC-formatted file already exists and will not re-made.")
+    #    return mpc_code, False
     
     # Get observation date in the right format
     date_keyword = get_par(settingsFile.keyDate, TEL)
