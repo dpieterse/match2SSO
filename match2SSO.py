@@ -644,16 +644,16 @@ def match_catalogues_single_night(catalogues_single_night, night_start,
             make_kod = False #Only make known objects database once
     
     #Remove the run directory after processing the last catalogue of the night
-    if not KEEP_TMP:
-        #Remove integrated database made for this night
-        #if isfile("{}mpcorb.sof".format(rundir)):
-        #    sso_database = os.readlink("{}mpcorb.sof".format(rundir))
-        #    if "epoch" in sso_database:
-        #        os.remove(sso_database)
-        #        LOG.info("Removed {}".format(sso_database))
-        
-        #Remove temporary folder made for this night
-        remove_tmp_folder(rundir)
+    #if not KEEP_TMP:
+    #    #Remove integrated database made for this night
+    #    if isfile("{}mpcorb.sof".format(rundir)):
+    #        sso_database = os.readlink("{}mpcorb.sof".format(rundir))
+    #        if "epoch" in sso_database:
+    #            os.remove(sso_database)
+    #            LOG.info("Removed {}".format(sso_database))
+    
+    #    #Remove temporary folder made for this night
+    #    remove_tmp_folder(rundir)
     
     if TIME_FUNCTIONS:
         log_timing_memory(t_matchsinglenight,
