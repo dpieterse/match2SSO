@@ -39,7 +39,7 @@
 # In[ ]:
 
 
-__version__ = "1.8.4"
+__version__ = "1.8.5"
 __author__ = "Danielle Pieterse"
 KEYWORDS_VERSION = "1.2.0"
 
@@ -1175,7 +1175,21 @@ def download_databases(redownload_db, tmp_folder, select_closest_epoch,
         database_name = "{}{}DB_version{}.dat".format(tmp_folder, sso_type,
                                                       database_version)
         try:
-            req = requests.get(database_url, allow_redirects=True)
+            proxy_port = os.environ.get("CLUSTER_PROXY_PORT")
+            if proxy_port:
+                # Route internet connection through port, so as to use the IP
+                # of the slurm login node instead of the compute node
+                print("Routing traffic through port {}...".format(proxy_port))
+                proxies = {
+                    'http': 'socks5h://localhost:{}'.format(proxy_port),
+                    'https': 'socks5h://localhost:{}'.format(proxy_port),
+                }
+            else:
+                # Proceed with direct internet connection
+                proxies = None
+
+            req = requests.get(database_url, proxies=proxies,
+                allow_redirects=True)
             with open(database_name, "wb") as file:
                 file.write(req.content)
             LOG.info("{} database version: {}".format(sso_type,
