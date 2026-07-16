@@ -1179,7 +1179,7 @@ def download_databases(redownload_db, tmp_folder, select_closest_epoch,
             if proxy_port:
                 # Route internet connection through port, so as to use the IP
                 # of the slurm login node instead of the compute node
-                print("Routing traffic through port {}...".format(proxy_port))
+                LOG.info("Routing traffic through port {}".format(proxy_port))
                 proxies = {
                     'http': 'socks5h://localhost:{}'.format(proxy_port),
                     'https': 'socks5h://localhost:{}'.format(proxy_port),
