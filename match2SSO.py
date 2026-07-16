@@ -1793,16 +1793,22 @@ def run_astcheck(mpcformat_file, rundir, output_file, matching_radius):
     
     # Create a file for storing the output of the astcheck run
     output_file_content = open(output_file, "w", encoding="utf-8")
-    
+    output_json = output_file.replace(".txt", ".json")
+
     # Run astcheck from folder containing .sof-file
     subprocess.call([
-        "astcheck", mpcformat_file, "-h", "-r{}".format(matching_radius),
+        "astcheck", mpcformat_file, "-j{}".format(output_json),
+        "-h", "-a0", "-r{}".format(matching_radius),
         "-m{}".format(get_par(settingsFile.limitingMagnitude, TEL)),
         "-M{}".format(get_par(settingsFile.maximalNumberOfAsteroids, TEL))],
         stdout=output_file_content, cwd=rundir)
     output_file_content.close()
     
     LOG.info("Matches saved to {}.".format(output_file))
+    
+    # Not using the json output for now
+    os.remove(output_json)
+    
     if TIME_FUNCTIONS:
         log_timing_memory(t_astcheck, label="run_astcheck")
     
