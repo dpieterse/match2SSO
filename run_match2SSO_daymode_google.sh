@@ -31,7 +31,7 @@ export CLUSTER_PROXY_PORT
 ssh -D "$CLUSTER_PROXY_PORT" -N -f "$SLURM_SUBMIT_HOST"
 
 # Run match2SSO
-/opt/apps/singularity/3.11.0/bin/singularity exec /home/sa_105685508700717199458/Containers/MLBG_latest.sif python /Software/match2SSO/match2SSO.py --mode day --telescope BG4
+/opt/apps/singularity/4.6.0/bin/singularity exec /home/sa_105685508700717199458/Containers/MLBG_latest.sif python /Software/match2SSO/match2SSO.py --mode day --telescope BG4
 
 # Close the ssh connection
 pkill -f "ssh -D $CLUSTER_PROXY_PORT"
